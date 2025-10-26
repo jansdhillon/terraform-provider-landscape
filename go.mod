@@ -1,4 +1,4 @@
-module terraform-provider-landscape-server
+module terraform-provider-landscape
 
 go 1.24.6
 
@@ -7,7 +7,7 @@ require (
 	github.com/hashicorp/terraform-plugin-go v0.29.0
 	github.com/hashicorp/terraform-plugin-log v0.9.0
 	github.com/hashicorp/terraform-plugin-testing v1.13.3
-	github.com/jansdhillon/landscape-go-client v0.0.0-20251026083835-1ba6386ec840
+	github.com/jansdhillon/landscape-go-api-client v0.0.0-20251026212634-cee1e23988f9
 )
 
 require (
