@@ -277,7 +277,7 @@ func (p *landscapeProvider) Configure(ctx context.Context, req provider.Configur
 
 // DataSources defines the data sources implemented in the provider.
 func (p *landscapeProvider) DataSources(_ context.Context) []func() datasource.DataSource {
-	return nil
+	return []func() datasource.DataSource{}
 }
 
 // Resources defines the resources implemented in the provider.

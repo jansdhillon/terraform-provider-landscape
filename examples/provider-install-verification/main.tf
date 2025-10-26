@@ -1,11 +1,9 @@
 terraform {
   required_providers {
     landscape = {
-      source = "registry.terraform.io/jansdhillon/landscape-server"
+      source = "registry.terraform.io/jansdhillon/landscape"
     }
   }
 }
 
 provider "landscape" {}
-
-data "landscape_coffees" "example" {}
