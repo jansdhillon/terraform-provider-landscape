@@ -5,6 +5,7 @@ package provider
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
@@ -129,20 +130,9 @@ func (d *scriptDataSource) Schema(ctx context.Context, req datasource.SchemaRequ
 				},
 				MarkdownDescription: "The user who last edited the script.",
 			},
-			"attachments": schema.ListNestedAttribute{
-				Computed: true,
-				NestedObject: schema.NestedAttributeObject{
-					Attributes: map[string]schema.Attribute{
-						"filename": schema.StringAttribute{Computed: true, Optional: true},
-						"id":       schema.NumberAttribute{Computed: true, Optional: true},
-					},
-				},
-				MarkdownDescription: "List of attachments for the script.",
-			},
-			"legacy_attachments": schema.ListAttribute{
+			"attachments": schema.DynamicAttribute{
 				Computed:            true,
-				ElementType:         types.StringType,
-				MarkdownDescription: "List of attachments for the (legacy) script.",
+				MarkdownDescription: "Attachments (list of strings or objects) stored as opaque JSON.",
 			},
 			"script_profiles": schema.ListNestedAttribute{
 				Computed: true,
@@ -201,6 +191,20 @@ func (d *scriptDataSource) Read(ctx context.Context, req datasource.ReadRequest,
 
 	state := scriptDataSourceModel(*scriptRes.JSON200)
 
-	tflog.Trace(ctx, "read a data source")
+	originalAttachments := scriptRes.JSON200.Attachments
+	state.Attachments = nil
+
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
+
+	if originalAttachments != nil {
+		raw, err := json.Marshal(originalAttachments)
+		if err != nil {
+			resp.Diagnostics.AddWarning("Failed to marshal attachments", err.Error())
+		} else {
+			dynVal := types.DynamicValue(types.StringValue(string(raw)))
+			resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("attachments"), dynVal)...)
+		}
+	}
+
+	tflog.Trace(ctx, "read a data source")
 }
