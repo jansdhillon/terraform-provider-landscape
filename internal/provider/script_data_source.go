@@ -202,9 +202,9 @@ func (d *scriptDataSource) Read(ctx context.Context, req datasource.ReadRequest,
 	}
 
 	// Unfortunately the legacy response is a list of strings, while the "modern"
-	// attachment response is a keyed map (object). The tfsk doesn't let us convert
+	// attachment response is an object. The tfsk doesn't let us convert
 	// from objects to strings or vice-versa so we make it "dynamic" and determine it
-	// at read time to preserve type safety.
+	// at read time to preserve some form of type safety.
 	legacyAttachmentsStrings := make([]attr.Value, 0)
 	for _, a := range *originalAttachments {
 		legacyAttachment, err := a.AsLegacyScriptAttachment()
