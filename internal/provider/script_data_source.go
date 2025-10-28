@@ -5,9 +5,10 @@ package provider
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
+	"math/big"
 
+	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/datasource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/path"
@@ -196,15 +197,54 @@ func (d *scriptDataSource) Read(ctx context.Context, req datasource.ReadRequest,
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 
-	if originalAttachments != nil {
-		raw, err := json.Marshal(originalAttachments)
-		if err != nil {
-			resp.Diagnostics.AddWarning("Failed to marshal attachments", err.Error())
-		} else {
-			dynVal := types.DynamicValue(types.StringValue(string(raw)))
-			resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("attachments"), dynVal)...)
-		}
+	if originalAttachments == nil || len(*originalAttachments) == 0 {
+		return
 	}
 
-	tflog.Trace(ctx, "read a data source")
+	// Unfortunately the legacy response is a list of strings, while the "modern"
+	// attachment response is a keyed map (object). The tfsk doesn't let us convert
+	// from objects to strings or vice-versa so we make it "dynamic" and determine it
+	// at read time to preserve type safety.
+	legacyAttachmentsStrings := make([]attr.Value, 0)
+	for _, a := range *originalAttachments {
+		legacyAttachment, err := a.AsLegacyScriptAttachment()
+		if err != nil {
+			legacyAttachmentsStrings = nil
+			break
+		}
+
+		legacyAttachmentsStrings = append(legacyAttachmentsStrings, types.StringValue(string(legacyAttachment)))
+	}
+
+	if legacyAttachmentsStrings != nil {
+		dynVal := types.DynamicValue(types.ListValueMust(types.StringType, legacyAttachmentsStrings))
+		tflog.Debug(ctx, "dynval is list of strings (legacy)")
+		resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("attachments"), dynVal)...)
+		return
+	}
+
+	attachmentObjects := make([]attr.Value, 0)
+	for _, a := range *originalAttachments {
+		attachment, err := a.AsScriptAttachment()
+		if err != nil {
+			attachmentObjects = nil
+			break
+		}
+
+		id := types.NumberValue(big.NewFloat(float64(attachment.Id)))
+		filename := types.StringValue(attachment.Filename)
+		attachmentObject, diags := types.ObjectValue(map[string]attr.Type{"id": id.Type(ctx), "filename": filename.Type(ctx)}, map[string]attr.Value{"id": id, "filename": filename})
+		if diags.HasError() {
+			tflog.Error(ctx, "couldn't convert script attachment into object")
+		}
+
+		attachmentObjects = append(attachmentObjects, attachmentObject)
+	}
+
+	if attachmentObjects != nil {
+		objectType := types.ObjectType{AttrTypes: map[string]attr.Type{"id": types.NumberType, "filename": types.StringType}}
+		dynVal := types.DynamicValue(types.ListValueMust(objectType, attachmentObjects))
+		tflog.Debug(ctx, "dynval is list of objects")
+		resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("attachments"), dynVal)...)
+	}
 }
