@@ -4,6 +4,7 @@
 package provider
 
 import (
+	"math/big"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
@@ -17,14 +18,13 @@ func TestAccExampleDataSource(t *testing.T) {
 		PreCheck:                 func() { testAccPreCheck(t) },
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
-			// Read testing
 			{
 				Config: testAccExampleDataSourceConfig,
 				ConfigStateChecks: []statecheck.StateCheck{
 					statecheck.ExpectKnownValue(
-						"data.scaffolding_example.test",
+						"data.landscape_script.test",
 						tfjsonpath.New("id"),
-						knownvalue.StringExact("example-id"),
+						knownvalue.NumberExact(big.NewFloat(1)),
 					),
 				},
 			},
@@ -33,7 +33,7 @@ func TestAccExampleDataSource(t *testing.T) {
 }
 
 const testAccExampleDataSourceConfig = `
-data "scaffolding_example" "test" {
-  configurable_attribute = "example"
+data "landscape_script" "test" {
+  id = 1
 }
 `
