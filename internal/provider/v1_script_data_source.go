@@ -15,36 +15,33 @@ import (
 )
 
 // Ensure provider defined types fully satisfy framework interfaces.
-var _ datasource.DataSource = &scriptDataSource{}
-var _ datasource.DataSourceWithConfigure = &scriptDataSource{}
+var _ datasource.DataSource = &v1ScriptDataSource{}
+var _ datasource.DataSourceWithConfigure = &v1ScriptDataSource{}
 
-func NewScriptDataSource() datasource.DataSource {
-	return &scriptDataSource{}
+func NewV1ScriptDataSource() datasource.DataSource {
+	return &v1ScriptDataSource{}
 }
 
-// scriptDataSource defines the data source implementation.
-type scriptDataSource struct {
+// v1ScriptDataSource defines the data source implementation.
+type v1ScriptDataSource struct {
 	client *landscape.ClientWithResponses
 }
 
-// scriptDataSourceState wraps the generated API model so we can add extra
+// v1ScriptDataSourceState wraps the generated API model so we can add extra
 // Terraform-only attributes without duplicating the struct.
-type scriptDataSourceState struct {
-	landscape.Script
-	AttachmentsLegacy types.List `tfsdk:"attachments_legacy"`
-}
+type v1ScriptDataSourceState landscape.V1Script
 
-func (d *scriptDataSource) Metadata(ctx context.Context, req datasource.MetadataRequest, resp *datasource.MetadataResponse) {
+func (d *v1ScriptDataSource) Metadata(ctx context.Context, req datasource.MetadataRequest, resp *datasource.MetadataResponse) {
 	resp.TypeName = req.ProviderTypeName + "_script"
 }
 
-func (d *scriptDataSource) Schema(ctx context.Context, req datasource.SchemaRequest, resp *datasource.SchemaResponse) {
+func (d *v1ScriptDataSource) Schema(ctx context.Context, req datasource.SchemaRequest, resp *datasource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		MarkdownDescription: "Script data source",
+		MarkdownDescription: "V1Script data source",
 		Attributes: map[string]schema.Attribute{
 			"id": schema.Int64Attribute{
 				Required:            true,
-				MarkdownDescription: "Script identifier",
+				MarkdownDescription: "V1Script identifier",
 			},
 			"title": schema.StringAttribute{
 				MarkdownDescription: "The title of the script.",
@@ -147,7 +144,7 @@ func (d *scriptDataSource) Schema(ctx context.Context, req datasource.SchemaRequ
 						"filename": schema.StringAttribute{Computed: true},
 					},
 				},
-				MarkdownDescription: "Script attachments as nested objects.",
+				MarkdownDescription: "V1Script attachments as nested objects.",
 			},
 			"attachments_legacy": schema.ListAttribute{
 				Computed:            true,
@@ -169,7 +166,7 @@ func (d *scriptDataSource) Schema(ctx context.Context, req datasource.SchemaRequ
 	}
 }
 
-func (d *scriptDataSource) Configure(ctx context.Context, req datasource.ConfigureRequest, resp *datasource.ConfigureResponse) {
+func (d *v1ScriptDataSource) Configure(ctx context.Context, req datasource.ConfigureRequest, resp *datasource.ConfigureResponse) {
 	if req.ProviderData == nil {
 		return
 	}
@@ -186,7 +183,7 @@ func (d *scriptDataSource) Configure(ctx context.Context, req datasource.Configu
 	d.client = client
 }
 
-func (d *scriptDataSource) Read(ctx context.Context, req datasource.ReadRequest, resp *datasource.ReadResponse) {
+func (d *v1ScriptDataSource) Read(ctx context.Context, req datasource.ReadRequest, resp *datasource.ReadResponse) {
 	var idValue types.Int64
 
 	resp.Diagnostics.Append(req.Config.GetAttribute(ctx, path.Root("id"), &idValue)...)
@@ -199,7 +196,7 @@ func (d *scriptDataSource) Read(ctx context.Context, req datasource.ReadRequest,
 		return
 	}
 
-	scriptRes, err := d.client.GetScriptWithResponse(ctx, landscape.ScriptIdPathParam(int(idValue.ValueInt64())))
+	scriptRes, err := d.client.GetV1ScriptWithResponse(ctx, landscape.V1ScriptIdPathParam(int(idValue.ValueInt64())))
 	if err != nil {
 		resp.Diagnostics.AddError("Failed to read script", err.Error())
 		return
@@ -210,30 +207,7 @@ func (d *scriptDataSource) Read(ctx context.Context, req datasource.ReadRequest,
 		return
 	}
 
-	state := scriptDataSourceState{
-		Script:            *scriptRes.JSON200,
-		AttachmentsLegacy: types.ListNull(types.StringType),
-	}
+	state :=
 
-	state.Script.Attachments = nil
-
-	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
-
-	attachmentsResp := scriptRes.JSON200.Attachments
-	if attachmentsResp == nil || len(*attachmentsResp) == 0 {
-		return
-	}
-
-	legacyAttachmentStrings, ok := ScriptAttachmentItemsAsListOfStringValues(ctx, *attachmentsResp)
-
-	if ok {
-		resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("attachments_legacy"), legacyAttachmentStrings)...)
-		return
-	}
-
-	attachmentObjects, ok := ScriptAttachmentItemsAsListOfObjectValues(ctx, *attachmentsResp)
-
-	if ok {
-		resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("attachments"), attachmentObjects)...)
-	}
+		resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 }

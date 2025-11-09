@@ -7,7 +7,7 @@ terraform {
 }
 
 provider "landscape" {
-    api_url = "https://landscape.canonical.com"
+    base_url = "https://landscape.canonical.com"
 }
 
 data "landscape_script" "myscript" {
