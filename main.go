@@ -7,10 +7,9 @@ import (
 	"context"
 	"flag"
 	"log"
+	"terraform-provider-landscape/internal/provider"
 
 	"github.com/hashicorp/terraform-plugin-framework/providerserver"
-
-	"terraform-provider-landscape/internal/provider"
 )
 
 var (

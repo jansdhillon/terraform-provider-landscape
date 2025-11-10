@@ -14,12 +14,11 @@ import (
 	landscape "github.com/jansdhillon/landscape-go-api-client/client"
 )
 
-// Ensure provider defined types fully satisfy framework interfaces.
 var _ datasource.DataSource = &v1ScriptDataSource{}
 var _ datasource.DataSourceWithConfigure = &v1ScriptDataSource{}
 
 func NewV2ScriptDataSource() datasource.DataSource {
-	return &v1ScriptDataSource{}
+	return &v2ScriptDataSource{}
 }
 
 // v2ScriptDataSource defines the data source implementation.
@@ -27,12 +26,10 @@ type v2ScriptDataSource struct {
 	client *landscape.ClientWithResponses
 }
 
-// v2ScriptDataSourceState wraps the generated API model so we can add extra
-// Terraform-only attributes without duplicating the struct.
-type v2ScriptDataSourceState landscape.V1Script
+type v2ScriptDataSourceModel = landscape.V2Script
 
 func (d *v2ScriptDataSource) Metadata(ctx context.Context, req datasource.MetadataRequest, resp *datasource.MetadataResponse) {
-	resp.TypeName = req.ProviderTypeName + "_script"
+	resp.TypeName = req.ProviderTypeName + "_v2_script"
 }
 
 func (d *v2ScriptDataSource) Schema(ctx context.Context, req datasource.SchemaRequest, resp *datasource.SchemaResponse) {
@@ -76,16 +73,6 @@ func (d *v2ScriptDataSource) Schema(ctx context.Context, req datasource.SchemaRe
 					"name": schema.StringAttribute{Computed: true, Optional: true},
 				},
 				MarkdownDescription: "The creator of the script.",
-			},
-			"creator": schema.SingleNestedAttribute{
-				Computed: true,
-				Optional: true,
-				Attributes: map[string]schema.Attribute{
-					"id":    schema.NumberAttribute{Computed: true, Optional: true},
-					"name":  schema.StringAttribute{Computed: true, Optional: true},
-					"email": schema.StringAttribute{Computed: true, Optional: true},
-				},
-				MarkdownDescription: "The creator of the (legacy) script.",
 			},
 			"last_edited_at": schema.StringAttribute{
 				Computed:            true,
@@ -146,11 +133,6 @@ func (d *v2ScriptDataSource) Schema(ctx context.Context, req datasource.SchemaRe
 				},
 				MarkdownDescription: "V1Script attachments as nested objects.",
 			},
-			"attachments_legacy": schema.ListAttribute{
-				Computed:            true,
-				ElementType:         types.StringType,
-				MarkdownDescription: "Legacy attachments as list of strings.",
-			},
 			"script_profiles": schema.ListNestedAttribute{
 				Computed: true,
 				Optional: true,
@@ -192,11 +174,11 @@ func (d *v2ScriptDataSource) Read(ctx context.Context, req datasource.ReadReques
 	}
 
 	if idValue.IsUnknown() || idValue.IsNull() {
-		resp.Diagnostics.AddError("Missing script identifier", "The `id` attribute must be provided for the landscape_script data source.")
+		resp.Diagnostics.AddError("Missing script identifier", "The `id` attribute must be provided for the landscape_v1_script data source.")
 		return
 	}
 
-	scriptRes, err := d.client.GetV1ScriptWithResponse(ctx, landscape.V1ScriptIdPathParam(int(idValue.ValueInt64())))
+	scriptRes, err := d.client.GetScriptWithResponse(ctx, landscape.ScriptIdPathParam(int(idValue.ValueInt64())))
 	if err != nil {
 		resp.Diagnostics.AddError("Failed to read script", err.Error())
 		return
@@ -207,10 +189,15 @@ func (d *v2ScriptDataSource) Read(ctx context.Context, req datasource.ReadReques
 		return
 	}
 
-	state := v1ScriptDataSourceState{
-		V1Script:          *scriptRes.JSON200,
-		AttachmentsLegacy: types.ListNull(types.StringType),
+	script := *scriptRes.JSON200
+
+	v2Script, err := script.AsV2Script()
+	if err != nil {
+		resp.Diagnostics.AddError("Failed to convert into V2 script", "Couldn't convert returned script into a V2 script (is it a legacy, V1 script?)")
+		return
 	}
 
-	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
+	state := v2ScriptDataSourceModel(v2Script)
+
+	resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
 }

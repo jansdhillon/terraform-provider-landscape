@@ -7,9 +7,13 @@ terraform {
 }
 
 provider "landscape" {
-    base_url = "https://landscape.canonical.com"
+  base_url = "https://landscape.canonical.com"
 }
 
-data "landscape_script" "myscript" {
-    id = 21145
+data "landscape_v1_script" "my_v1_script" {
+  id = 21433
+}
+
+data "landscape_v2_script" "my_v2_script" {
+  id = 21434
 }

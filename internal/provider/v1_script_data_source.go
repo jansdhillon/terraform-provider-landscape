@@ -14,7 +14,6 @@ import (
 	landscape "github.com/jansdhillon/landscape-go-api-client/client"
 )
 
-// Ensure provider defined types fully satisfy framework interfaces.
 var _ datasource.DataSource = &v1ScriptDataSource{}
 var _ datasource.DataSourceWithConfigure = &v1ScriptDataSource{}
 
@@ -27,21 +26,19 @@ type v1ScriptDataSource struct {
 	client *landscape.ClientWithResponses
 }
 
-// v1ScriptDataSourceState wraps the generated API model so we can add extra
-// Terraform-only attributes without duplicating the struct.
-type v1ScriptDataSourceState landscape.V1Script
+type v1ScriptDataSourceModel = landscape.V1Script
 
 func (d *v1ScriptDataSource) Metadata(ctx context.Context, req datasource.MetadataRequest, resp *datasource.MetadataResponse) {
-	resp.TypeName = req.ProviderTypeName + "_script"
+	resp.TypeName = req.ProviderTypeName + "_v1_script"
 }
 
 func (d *v1ScriptDataSource) Schema(ctx context.Context, req datasource.SchemaRequest, resp *datasource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		MarkdownDescription: "V1Script data source",
+		MarkdownDescription: "V1 Script data source",
 		Attributes: map[string]schema.Attribute{
 			"id": schema.Int64Attribute{
 				Required:            true,
-				MarkdownDescription: "V1Script identifier",
+				MarkdownDescription: "The script identifier",
 			},
 			"title": schema.StringAttribute{
 				MarkdownDescription: "The title of the script.",
@@ -53,30 +50,6 @@ func (d *v1ScriptDataSource) Schema(ctx context.Context, req datasource.SchemaRe
 				Computed:            true,
 				Optional:            true,
 			},
-			"code": schema.StringAttribute{
-				Computed:            true,
-				MarkdownDescription: "The script code content.",
-				Optional:            true,
-			},
-			"interpreter": schema.StringAttribute{
-				Computed:            true,
-				MarkdownDescription: "The script interpreter.",
-				Optional:            true,
-			},
-			"created_at": schema.StringAttribute{
-				Computed:            true,
-				Optional:            true,
-				MarkdownDescription: "When the script was created.",
-			},
-			"created_by": schema.SingleNestedAttribute{
-				Computed: true,
-				Optional: true,
-				Attributes: map[string]schema.Attribute{
-					"id":   schema.NumberAttribute{Computed: true, Optional: true},
-					"name": schema.StringAttribute{Computed: true, Optional: true},
-				},
-				MarkdownDescription: "The creator of the script.",
-			},
 			"creator": schema.SingleNestedAttribute{
 				Computed: true,
 				Optional: true,
@@ -87,20 +60,10 @@ func (d *v1ScriptDataSource) Schema(ctx context.Context, req datasource.SchemaRe
 				},
 				MarkdownDescription: "The creator of the (legacy) script.",
 			},
-			"last_edited_at": schema.StringAttribute{
-				Computed:            true,
-				Optional:            true,
-				MarkdownDescription: "When the script was last edited.",
-			},
 			"status": schema.StringAttribute{
 				Optional:            true,
 				Computed:            true,
 				MarkdownDescription: "The status of the script.",
-			},
-			"version_number": schema.Int64Attribute{
-				Computed:            true,
-				Optional:            true,
-				MarkdownDescription: "The version number of the script.",
 			},
 			"username": schema.StringAttribute{
 				Computed:            true,
@@ -112,55 +75,10 @@ func (d *v1ScriptDataSource) Schema(ctx context.Context, req datasource.SchemaRe
 				Optional:            true,
 				MarkdownDescription: "The time limit in milliseconds for a script to complete successfully.",
 			},
-			"is_editable": schema.BoolAttribute{
-				Computed:            true,
-				Optional:            true,
-				MarkdownDescription: "Whether the script is editable.",
-			},
-			"is_executable": schema.BoolAttribute{
-				Computed:            true,
-				Optional:            true,
-				MarkdownDescription: "Whether the script is executable.",
-			},
-			"is_redactable": schema.BoolAttribute{
-				Computed:            true,
-				Optional:            true,
-				MarkdownDescription: "Whether the script is redactable.",
-			},
-			"last_edited_by": schema.SingleNestedAttribute{
-				Computed: true,
-				Optional: true,
-				Attributes: map[string]schema.Attribute{
-					"id":   schema.NumberAttribute{Computed: true, Optional: true},
-					"name": schema.StringAttribute{Computed: true, Optional: true},
-				},
-				MarkdownDescription: "The user who last edited the script.",
-			},
-			"attachments": schema.ListNestedAttribute{
-				Computed: true,
-				NestedObject: schema.NestedAttributeObject{
-					Attributes: map[string]schema.Attribute{
-						"id":       schema.NumberAttribute{Computed: true},
-						"filename": schema.StringAttribute{Computed: true},
-					},
-				},
-				MarkdownDescription: "V1Script attachments as nested objects.",
-			},
-			"attachments_legacy": schema.ListAttribute{
+			"attachments": schema.ListAttribute{
 				Computed:            true,
 				ElementType:         types.StringType,
 				MarkdownDescription: "Legacy attachments as list of strings.",
-			},
-			"script_profiles": schema.ListNestedAttribute{
-				Computed: true,
-				Optional: true,
-				NestedObject: schema.NestedAttributeObject{
-					Attributes: map[string]schema.Attribute{
-						"id":    schema.NumberAttribute{Computed: true},
-						"title": schema.StringAttribute{Computed: true},
-					},
-				},
-				MarkdownDescription: "List of script profiles.",
 			},
 		},
 	}
@@ -192,11 +110,11 @@ func (d *v1ScriptDataSource) Read(ctx context.Context, req datasource.ReadReques
 	}
 
 	if idValue.IsUnknown() || idValue.IsNull() {
-		resp.Diagnostics.AddError("Missing script identifier", "The `id` attribute must be provided for the landscape_script data source.")
+		resp.Diagnostics.AddError("Missing script identifier", "The `id` attribute must be provided for the landscape_v1_script data source.")
 		return
 	}
 
-	scriptRes, err := d.client.GetV1ScriptWithResponse(ctx, landscape.V1ScriptIdPathParam(int(idValue.ValueInt64())))
+	scriptRes, err := d.client.GetScriptWithResponse(ctx, landscape.ScriptIdPathParam(int(idValue.ValueInt64())))
 	if err != nil {
 		resp.Diagnostics.AddError("Failed to read script", err.Error())
 		return
@@ -207,7 +125,14 @@ func (d *v1ScriptDataSource) Read(ctx context.Context, req datasource.ReadReques
 		return
 	}
 
-	state :=
+	script := *scriptRes.JSON200
 
-		resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
+	v1Script, err := script.AsV1Script()
+	if err != nil {
+		resp.Diagnostics.AddError("Failed to convert into (legacy) V1 script", "Couldn't convert returned script into a V1 script (is it a modern, V2 script?)")
+	}
+
+	state := v1ScriptDataSourceModel(v1Script)
+
+	resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
 }

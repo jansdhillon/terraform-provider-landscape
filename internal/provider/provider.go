@@ -266,6 +266,7 @@ func (p *landscapeProvider) Configure(ctx context.Context, req provider.Configur
 func (p *landscapeProvider) DataSources(_ context.Context) []func() datasource.DataSource {
 	return []func() datasource.DataSource{
 		NewV1ScriptDataSource,
+		NewV2ScriptDataSource,
 	}
 }
 
