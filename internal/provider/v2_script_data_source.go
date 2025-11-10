@@ -14,8 +14,8 @@ import (
 	landscape "github.com/jansdhillon/landscape-go-api-client/client"
 )
 
-var _ datasource.DataSource = &v1ScriptDataSource{}
-var _ datasource.DataSourceWithConfigure = &v1ScriptDataSource{}
+var _ datasource.DataSource = &v2ScriptDataSource{}
+var _ datasource.DataSourceWithConfigure = &v2ScriptDataSource{}
 
 func NewV2ScriptDataSource() datasource.DataSource {
 	return &v2ScriptDataSource{}
@@ -26,7 +26,7 @@ type v2ScriptDataSource struct {
 	client *landscape.ClientWithResponses
 }
 
-type v2ScriptDataSourceModel = landscape.V2Script
+type V2ScriptDataSourceModel landscape.V2Script
 
 func (d *v2ScriptDataSource) Metadata(ctx context.Context, req datasource.MetadataRequest, resp *datasource.MetadataResponse) {
 	resp.TypeName = req.ProviderTypeName + "_v2_script"
@@ -34,7 +34,7 @@ func (d *v2ScriptDataSource) Metadata(ctx context.Context, req datasource.Metada
 
 func (d *v2ScriptDataSource) Schema(ctx context.Context, req datasource.SchemaRequest, resp *datasource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		MarkdownDescription: "V1Script data source",
+		MarkdownDescription: "V2 Script data source",
 		Attributes: map[string]schema.Attribute{
 			"id": schema.Int64Attribute{
 				Required:            true,
@@ -197,7 +197,7 @@ func (d *v2ScriptDataSource) Read(ctx context.Context, req datasource.ReadReques
 		return
 	}
 
-	state := v2ScriptDataSourceModel(v2Script)
+	state := V2ScriptDataSourceModel(v2Script)
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
 }

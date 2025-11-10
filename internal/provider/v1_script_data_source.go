@@ -26,7 +26,7 @@ type v1ScriptDataSource struct {
 	client *landscape.ClientWithResponses
 }
 
-type v1ScriptDataSourceModel = landscape.V1Script
+type V1ScriptDataSourceModel = landscape.V1Script
 
 func (d *v1ScriptDataSource) Metadata(ctx context.Context, req datasource.MetadataRequest, resp *datasource.MetadataResponse) {
 	resp.TypeName = req.ProviderTypeName + "_v1_script"
@@ -92,7 +92,7 @@ func (d *v1ScriptDataSource) Configure(ctx context.Context, req datasource.Confi
 	client, ok := req.ProviderData.(*landscape.ClientWithResponses)
 	if !ok {
 		resp.Diagnostics.AddError(
-			"Unexpected Data Source Configure Type",
+			"Unexpected V1 Script Data Source Configure Type",
 			fmt.Sprintf("Expected *landscape.ClientWithResponses, got: %T. Please report this issue to the provider developers.", req.ProviderData),
 		)
 		return
@@ -132,7 +132,7 @@ func (d *v1ScriptDataSource) Read(ctx context.Context, req datasource.ReadReques
 		resp.Diagnostics.AddError("Failed to convert into (legacy) V1 script", "Couldn't convert returned script into a V1 script (is it a modern, V2 script?)")
 	}
 
-	state := v1ScriptDataSourceModel(v1Script)
+	state := V1ScriptDataSourceModel(v1Script)
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
 }

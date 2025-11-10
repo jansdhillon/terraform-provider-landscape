@@ -31,18 +31,18 @@ type V2ScriptResource struct {
 type V2ScriptResourceModel landscape.V2Script
 
 func (r *V2ScriptResource) Metadata(ctx context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
-	resp.TypeName = req.ProviderTypeName + "_script"
+	resp.TypeName = req.ProviderTypeName + "_v2_script"
 }
 
 func (r *V2ScriptResource) Schema(ctx context.Context, req resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
 		// This description is used by the documentation generator and the language server.
-		MarkdownDescription: "V2Script resource",
+		MarkdownDescription: "V2 Script resource",
 
 		Attributes: map[string]schema.Attribute{
 			"id": schema.Int64Attribute{
 				Required:            true,
-				MarkdownDescription: "V2Script identifier",
+				MarkdownDescription: "Script identifier",
 			},
 			"title": schema.StringAttribute{
 				MarkdownDescription: "The title of the script.",
@@ -76,16 +76,6 @@ func (r *V2ScriptResource) Schema(ctx context.Context, req resource.SchemaReques
 					"name": schema.StringAttribute{Computed: true, Optional: true},
 				},
 				MarkdownDescription: "The creator of the script.",
-			},
-			"creator": schema.SingleNestedAttribute{
-				Computed: true,
-				Optional: true,
-				Attributes: map[string]schema.Attribute{
-					"id":    schema.NumberAttribute{Computed: true, Optional: true},
-					"name":  schema.StringAttribute{Computed: true, Optional: true},
-					"email": schema.StringAttribute{Computed: true, Optional: true},
-				},
-				MarkdownDescription: "The creator of the (legacy) script.",
 			},
 			"last_edited_at": schema.StringAttribute{
 				Computed:            true,

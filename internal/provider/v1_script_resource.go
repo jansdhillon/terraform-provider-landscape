@@ -6,6 +6,9 @@ package provider
 import (
 	"context"
 	"fmt"
+	"log"
+	"net/url"
+	"strconv"
 
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
@@ -155,13 +158,11 @@ func (r *V1ScriptResource) Configure(ctx context.Context, req resource.Configure
 	}
 
 	client, ok := req.ProviderData.(*landscape.ClientWithResponses)
-
 	if !ok {
 		resp.Diagnostics.AddError(
-			"Unexpected Resource Configure Type",
-			fmt.Sprintf("Expected *http.Client, got: %T. Please report this issue to the provider developers.", req.ProviderData),
+			"Unexpected V1 Script Resource Configure Type",
+			fmt.Sprintf("Expected *landscape.ClientWithResponses, got: %T. Please report this issue to the provider developers.", req.ProviderData),
 		)
-
 		return
 	}
 
@@ -178,20 +179,57 @@ func (r *V1ScriptResource) Create(ctx context.Context, req resource.CreateReques
 		return
 	}
 
-	// If applicable, this is a great opportunity to initialize any necessary
-	// provider client data and make a call using it.
-	// httpResp, err := r.client.Do(httpReq)
-	// if err != nil {
-	//     resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to create example, got error: %s", err))
-	//     return
-	// }
+	createParams := landscape.LegacyActionParams("CreateScript")
+	urlVals := url.Values{}
 
-	// For the purposes of this example code, hardcoding a response value to
-	// save into the Terraform state.
-	// data.Id = types.StringValue("example-id")
+	var username string
+	if data.Username != nil {
+		username = *data.Username
 
-	// Write logs using the tflog package
-	// Documentation: https://terraform.io/plugin/log
+	}
+
+	if data.TimeLimit != nil {
+		urlVals.Add("time_limit", strconv.Itoa(*data.TimeLimit))
+	}
+	if data.AccessGroup != nil {
+		urlVals.Add("access_group", *data.AccessGroup)
+	}
+	
+	if data.
+
+	queryArgsEditorFn := landscape.EncodeQueryRequestEditor(url.Values{
+		"code":       []string{},
+		"script_id":  []string{strconv.Itoa(data.Id)},
+		"title":      []string{data.Title},
+		"time_limit": []string{strconv.Itoa(timeLimit)},
+		"username":   []string{username},
+	})
+
+	editedScriptRes, err := r.client.InvokeLegacyActionWithResponse(ctx, createParams, queryArgsEditorFn)
+
+	if err != nil {
+		log.Fatalf("failed to create script: %v", err)
+	}
+
+	if editedScriptRes == nil {
+		log.Fatalf("edit script response returned nil response")
+	}
+
+	if editedScriptRes.StatusCode() != 200 {
+		log.Fatalf("editing script failed: status=%d body=%s", editedScriptRes.StatusCode(), string(editedScriptRes.Body))
+	}
+
+	if editedScriptRes.JSON200 == nil {
+		log.Fatalf("legacy action did not return a script object: %s", string(editedScriptRes.Body))
+	}
+
+	editedScript, err := editedScriptRes.JSON200.AsV1Script()
+	if err != nil {
+		log.Fatalf("failed to convert returned script into a V1Script: %s", err)
+	}
+
+	data = V1ScriptResourceModel(editedScript)
+
 	tflog.Trace(ctx, "created a resource")
 
 	// Save data into Terraform state
@@ -208,13 +246,26 @@ func (r *V1ScriptResource) Read(ctx context.Context, req resource.ReadRequest, r
 		return
 	}
 
-	// If applicable, this is a great opportunity to initialize any necessary
-	// provider client data and make a call using it.
-	// httpResp, err := r.client.Do(httpReq)
-	// if err != nil {
-	//     resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to read example, got error: %s", err))
-	//     return
-	// }
+	scriptRes, err := r.client.GetScriptWithResponse(ctx, data.Id)
+
+	if err != nil {
+		resp.Diagnostics.AddError("Failed to read script", err.Error())
+		return
+	}
+
+	if scriptRes.JSON200 == nil {
+		resp.Diagnostics.AddError("Failed to get script", "An error occurred reading the script.")
+		return
+	}
+
+	script := *scriptRes.JSON200
+
+	v1Script, err := script.AsV1Script()
+	if err != nil {
+		resp.Diagnostics.AddError("Failed to convert into (legacy) V1 script", "Couldn't convert returned script into a V1 script (is it a modern, V2 script?)")
+	}
+
+	data = V1ScriptResourceModel(v1Script)
 
 	// Save updated data into Terraform state
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
@@ -230,15 +281,49 @@ func (r *V1ScriptResource) Update(ctx context.Context, req resource.UpdateReques
 		return
 	}
 
-	// If applicable, this is a great opportunity to initialize any necessary
-	// provider client data and make a call using it.
-	// httpResp, err := r.client.Do(httpReq)
-	// if err != nil {
-	//     resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to update example, got error: %s", err))
-	//     return
-	// }
+	editParams := landscape.LegacyActionParams("EditScript")
+	var username string
+	if data.Username != nil {
+		username = *data.Username
+	}
 
-	// Save updated data into Terraform state
+	var timeLimit int
+	if data.TimeLimit != nil {
+		timeLimit = *data.TimeLimit
+	}
+	queryArgsEditorFn := landscape.EncodeQueryRequestEditor(url.Values{
+		"code":       []string{},
+		"script_id":  []string{strconv.Itoa(data.Id)},
+		"title":      []string{data.Title},
+		"time_limit": []string{strconv.Itoa(timeLimit)},
+		"username":   []string{username},
+	})
+
+	editedScriptRes, err := r.client.InvokeLegacyActionWithResponse(ctx, editParams, queryArgsEditorFn)
+
+	if err != nil {
+		log.Fatalf("failed to edit script: %v", err)
+	}
+
+	if editedScriptRes == nil {
+		log.Fatalf("edit script response returned nil response")
+	}
+
+	if editedScriptRes.StatusCode() != 200 {
+		log.Fatalf("editing script failed: status=%d body=%s", editedScriptRes.StatusCode(), string(editedScriptRes.Body))
+	}
+
+	if editedScriptRes.JSON200 == nil {
+		log.Fatalf("editing script did not return a script object: %s", string(editedScriptRes.Body))
+	}
+
+	editedScript, err := editedScriptRes.JSON200.AsV1Script()
+	if err != nil {
+		log.Fatalf("failed to convert returned script into a V1Script: %s", err)
+	}
+
+	data = V1ScriptResourceModel(editedScript)
+
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }
 
@@ -252,13 +337,17 @@ func (r *V1ScriptResource) Delete(ctx context.Context, req resource.DeleteReques
 		return
 	}
 
-	// If applicable, this is a great opportunity to initialize any necessary
-	// provider client data and make a call using it.
-	// httpResp, err := r.client.Do(httpReq)
-	// if err != nil {
-	//     resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to delete example, got error: %s", err))
-	//     return
-	// }
+	editParams := landscape.LegacyActionParams("RemoveScript")
+	queryArgsEditorFn := landscape.EncodeQueryRequestEditor(url.Values{
+		"script_id": []string{strconv.Itoa(data.Id)},
+	})
+
+	_, err := r.client.InvokeLegacyActionWithResponse(ctx, editParams, queryArgsEditorFn)
+
+	if err != nil {
+		log.Fatalf("failed to remove script: %v", err)
+	}
+
 }
 
 func (r *V1ScriptResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
