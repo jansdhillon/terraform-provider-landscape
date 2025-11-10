@@ -48,31 +48,31 @@ func (p *landscapeProvider) Metadata(_ context.Context, _ provider.MetadataReque
 func (p *landscapeProvider) Schema(_ context.Context, _ provider.SchemaRequest, resp *provider.SchemaResponse) {
 	resp.Schema = schema.Schema{
 		Attributes: map[string]schema.Attribute{
-			"api_url": schema.StringAttribute{
+			"base_url": schema.StringAttribute{
 				Required:    true,
-				Description: "The Landscape API URL. Can also be set with the LANDSCAPE_API_URL environment variable.",
+				Description: "Landscape base URL. Can also be set with the LANDSCAPE_BASE_URL environment variable.",
 			},
 			"account": schema.StringAttribute{
 				Optional:    true,
-				Description: "The Landscape account name (optional when using email/password authentication). Can also be set with the LANDSCAPE_API_ACCOUNT environment variable.",
+				Description: "Landscape account name (optional when using email/password authentication). Can also be set with the LANDSCAPE_ACCOUNT environment variable.",
 			},
 			"access_key": schema.StringAttribute{
 				Optional:    true,
-				Description: "The Landscape API access key (required with secret_key for access key authentication). Can also be set with the LANDSCAPE_API_ACCESS_KEY environment variable.",
+				Description: "Landscape API access key (required with secret_key for access key authentication). Can also be set with the LANDSCAPE_ACCESS_KEY environment variable.",
 			},
 			"email": schema.StringAttribute{
 				Optional:    true,
-				Description: "The Landscape account email (required with password for email authentication). Can also be set with the LANDSCAPE_API_EMAIL environment variable.",
+				Description: "Landscape account email (required with password for email authentication). Can also be set with the LANDSCAPE_EMAIL environment variable.",
 			},
 			"password": schema.StringAttribute{
 				Optional:    true,
 				Sensitive:   true,
-				Description: "The Landscape account password (required with email for email authentication). Can also be set with the LANDSCAPE_API_PASSWORD environment variable.",
+				Description: "Landscape account password (required with email for email authentication). Can also be set with the LANDSCAPE_PASSWORD environment variable.",
 			},
 			"secret_key": schema.StringAttribute{
 				Sensitive:   true,
 				Optional:    true,
-				Description: "The Landscape API secret key (required with access_key for access key authentication). Can also be set with the LANDSCAPE_API_SECRET_KEY environment variable.",
+				Description: "Landscape API secret key (required with access_key for access key authentication). Can also be set with the LANDSCAPE_SECRET_KEY environment variable.",
 			},
 		},
 	}
@@ -80,7 +80,7 @@ func (p *landscapeProvider) Schema(_ context.Context, _ provider.SchemaRequest, 
 
 // landscapeProviderModel maps provider schema data to a Go type
 type landscapeProviderModel struct {
-	APIURL    types.String `tfsdk:"api_url"`
+	BaseURL   types.String `tfsdk:"base_url"`
 	Account   types.String `tfsdk:"account"`
 	AccessKey types.String `tfsdk:"access_key"`
 	Email     types.String `tfsdk:"email"`
@@ -100,12 +100,12 @@ func (p *landscapeProvider) Configure(ctx context.Context, req provider.Configur
 	// If practitioner provided a configuration value for any of the
 	// attributes, it must be a known value.
 
-	if config.APIURL.IsUnknown() {
+	if config.BaseURL.IsUnknown() {
 		resp.Diagnostics.AddAttributeError(
-			path.Root("api_url"),
-			"Unknown API URL",
-			"The provider cannot create the Landscape API client as there is an unknown configuration value for the API URL. "+
-				"Either target apply the source of the value first, set the value statically in the configuration, or use the LANDSCAPE_API_URL environment variable.",
+			path.Root("base_url"),
+			"Unknown Base URL",
+			"The provider cannot create the Landscape API client as there is an unknown configuration value for the base URL. "+
+				"Either target apply the source of the value first, set the value statically in the configuration, or use the LANDSCAPE_BASE_URL environment variable.",
 		)
 	}
 
@@ -114,7 +114,7 @@ func (p *landscapeProvider) Configure(ctx context.Context, req provider.Configur
 			path.Root("access_key"),
 			"Unknown Access Key",
 			"The provider cannot create the Landscape API client as there is an unknown configuration value for the access key. "+
-				"Either target apply the source of the value first, set the value statically in the configuration, or use the LANDSCAPE_API_ACCESS_KEY environment variable.",
+				"Either target apply the source of the value first, set the value statically in the configuration, or use the LANDSCAPE_ACCESS_KEY environment variable.",
 		)
 	}
 
@@ -123,7 +123,7 @@ func (p *landscapeProvider) Configure(ctx context.Context, req provider.Configur
 			path.Root("secret_key"),
 			"Unknown Secret Key",
 			"The provider cannot create the Landscape API client as there is an unknown configuration value for the secret key, but an access key has been provided. "+
-				"Either target apply the source of the value first, set the value statically in the configuration, or use the LANDSCAPE_API_SECRET_KEY environment variable.",
+				"Either target apply the source of the value first, set the value statically in the configuration, or use the LANDSCAPE_SECRET_KEY environment variable.",
 		)
 	}
 
@@ -132,7 +132,7 @@ func (p *landscapeProvider) Configure(ctx context.Context, req provider.Configur
 			path.Root("email"),
 			"Unknown Email",
 			"The provider cannot create the Landscape API client as there is an unknown configuration value for the email, but a password has been provided. "+
-				"Either target apply the source of the value first, set the value statically in the configuration, or use the LANDSCAPE_API_EMAIL environment variable.",
+				"Either target apply the source of the value first, set the value statically in the configuration, or use the LANDSCAPE_EMAIL environment variable.",
 		)
 	}
 
@@ -141,7 +141,7 @@ func (p *landscapeProvider) Configure(ctx context.Context, req provider.Configur
 			path.Root("password"),
 			"Unknown Password",
 			"The provider cannot create the Landscape API client as there is an unknown configuration value for the password, but an email has been provided. "+
-				"Either target apply the source of the value first, set the value statically in the configuration, or use the LANDSCAPE_API_PASSWORD environment variable.",
+				"Either target apply the source of the value first, set the value statically in the configuration, or use the LANDSCAPE_PASSWORD environment variable.",
 		)
 	}
 
@@ -150,7 +150,7 @@ func (p *landscapeProvider) Configure(ctx context.Context, req provider.Configur
 			path.Root("account"),
 			"Account Name Requires Email/Password",
 			"The provider cannot create the Landscape API client as there is an unknown configuration value for the email and password, but an account has been provided. "+
-				"Either target apply the sources of the values first, set the values statically in the configuration, or use the LANDSCAPE_API_EMAIL and LANDSCAPE_API_PASSWORD environment variable.",
+				"Either target apply the sources of the values first, set the values statically in the configuration, or use the LANDSCAPE_EMAIL and LANDSCAPE_PASSWORD environment variable.",
 		)
 	}
 
@@ -158,15 +158,15 @@ func (p *landscapeProvider) Configure(ctx context.Context, req provider.Configur
 		return
 	}
 
-	apiURL := os.Getenv("LANDSCAPE_API_URL")
-	accessKey := os.Getenv("LANDSCAPE_API_ACCESS_KEY")
-	secretKey := os.Getenv("LANDSCAPE_API_SECRET_KEY")
-	email := os.Getenv("LANDSCAPE_API_EMAIL")
-	password := os.Getenv("LANDSCAPE_API_PASSWORD")
-	account := os.Getenv("LANDSCAPE_API_ACCOUNT")
+	baseURL := os.Getenv("LANDSCAPE_BASE_URL")
+	accessKey := os.Getenv("LANDSCAPE_ACCESS_KEY")
+	secretKey := os.Getenv("LANDSCAPE_SECRET_KEY")
+	email := os.Getenv("LANDSCAPE_EMAIL")
+	password := os.Getenv("LANDSCAPE_PASSWORD")
+	account := os.Getenv("LANDSCAPE_ACCOUNT")
 
-	if !config.APIURL.IsNull() {
-		apiURL = config.APIURL.ValueString()
+	if !config.BaseURL.IsNull() {
+		baseURL = config.BaseURL.ValueString()
 	}
 
 	if !config.Email.IsNull() {
@@ -190,12 +190,12 @@ func (p *landscapeProvider) Configure(ctx context.Context, req provider.Configur
 	}
 
 	// Validate required configurations
-	if apiURL == "" {
+	if baseURL == "" {
 		resp.Diagnostics.AddAttributeError(
-			path.Root("api_url"),
-			"Missing Landscape API URL",
-			"The provider cannot create the Landscape API client as there is a missing or empty value for the API URL. "+
-				"Set the API URL value in the configuration or use the LANDSCAPE_API_URL environment variable. "+
+			path.Root("base_url"),
+			"Missing Landscape Base URL",
+			"The provider cannot create the Landscape API client as there is a missing or empty value for the base URL. "+
+				"Set the base URL value in the configuration or use the LANDSCAPE_BASE_URL environment variable. "+
 				"If either is already set, ensure the value is not empty.",
 		)
 	}
@@ -208,11 +208,9 @@ func (p *landscapeProvider) Configure(ctx context.Context, req provider.Configur
 		resp.Diagnostics.AddError(
 			"Missing Authentication Credentials",
 			"The provider requires either email/password authentication OR access_key/secret_key authentication. "+
-				"Please provide either:\n"+
-				"1. email and password (with optional account), OR\n"+
-				"2. access_key and secret_key\n\n"+
+				"Provide either an email and password (and, optionally, an account) or an access_key and secret_key."+
 				"Set the values in the configuration or use the corresponding environment variables: "+
-				"LANDSCAPE_API_EMAIL, LANDSCAPE_API_PASSWORD, LANDSCAPE_API_ACCOUNT or LANDSCAPE_API_ACCESS_KEY, LANDSCAPE_API_SECRET_KEY.",
+				"LANDSCAPE_EMAIL, LANDSCAPE_PASSWORD, LANDSCAPE_ACCOUNT or LANDSCAPE_ACCESS_KEY, LANDSCAPE_SECRET_KEY.",
 		)
 	}
 
@@ -221,7 +219,7 @@ func (p *landscapeProvider) Configure(ctx context.Context, req provider.Configur
 		resp.Diagnostics.AddError(
 			"Incomplete Email Authentication",
 			"Both email and password are required for email authentication. "+
-				"Set both email and password values in the configuration or use the LANDSCAPE_API_EMAIL and LANDSCAPE_API_PASSWORD environment variables.",
+				"Set both email and password values in the configuration or use the LANDSCAPE_EMAIL and LANDSCAPE_PASSWORD environment variables.",
 		)
 	}
 
@@ -230,7 +228,7 @@ func (p *landscapeProvider) Configure(ctx context.Context, req provider.Configur
 		resp.Diagnostics.AddError(
 			"Incomplete Access Key Authentication",
 			"Both access_key and secret_key are required for access key authentication. "+
-				"Set both access_key and secret_key values in the configuration or use the LANDSCAPE_API_ACCESS_KEY and LANDSCAPE_API_SECRET_KEY environment variables.",
+				"Set both access_key and secret_key values in the configuration or use the LANDSCAPE_ACCESS_KEY and LANDSCAPE_SECRET_KEY environment variables.",
 		)
 	}
 
@@ -242,9 +240,9 @@ func (p *landscapeProvider) Configure(ctx context.Context, req provider.Configur
 	var err error
 
 	if email != "" && password != "" {
-		client, err = landscape.NewLandscapeAPIClient(apiURL, landscape.NewEmailPasswordProvider(email, password, &account))
+		client, err = landscape.NewLandscapeAPIClient(baseURL, landscape.NewEmailPasswordProvider(email, password, &account))
 	} else {
-		client, err = landscape.NewLandscapeAPIClient(apiURL, landscape.NewAccessKeyProvider(accessKey, secretKey))
+		client, err = landscape.NewLandscapeAPIClient(baseURL, landscape.NewAccessKeyProvider(accessKey, secretKey))
 	}
 
 	if err != nil {
@@ -267,7 +265,8 @@ func (p *landscapeProvider) Configure(ctx context.Context, req provider.Configur
 // DataSources defines the data sources implemented in the provider.
 func (p *landscapeProvider) DataSources(_ context.Context) []func() datasource.DataSource {
 	return []func() datasource.DataSource{
-		NewScriptDataSource,
+		NewV1ScriptDataSource,
+		NewV2ScriptDataSource,
 	}
 }
 

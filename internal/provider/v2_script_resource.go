@@ -15,34 +15,34 @@ import (
 )
 
 // Ensure provider defined types fully satisfy framework interfaces.
-var _ resource.Resource = &ScriptResource{}
-var _ resource.ResourceWithImportState = &ScriptResource{}
+var _ resource.Resource = &V2ScriptResource{}
+var _ resource.ResourceWithImportState = &V2ScriptResource{}
 
-func NewScriptResource() resource.Resource {
-	return &ScriptResource{}
+func NewV2ScriptResource() resource.Resource {
+	return &V2ScriptResource{}
 }
 
-// ScriptResource defines the resource implementation.
-type ScriptResource struct {
+// V2ScriptResource defines the resource implementation.
+type V2ScriptResource struct {
 	client *landscape.ClientWithResponses
 }
 
-// ScriptResourceModel describes the resource data model.
-type ScriptResourceModel landscape.Script
+// V2ScriptResourceModel describes the resource data model.
+type V2ScriptResourceModel landscape.V2Script
 
-func (r *ScriptResource) Metadata(ctx context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
+func (r *V2ScriptResource) Metadata(ctx context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
 	resp.TypeName = req.ProviderTypeName + "_script"
 }
 
-func (r *ScriptResource) Schema(ctx context.Context, req resource.SchemaRequest, resp *resource.SchemaResponse) {
+func (r *V2ScriptResource) Schema(ctx context.Context, req resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
 		// This description is used by the documentation generator and the language server.
-		MarkdownDescription: "Script resource",
+		MarkdownDescription: "V2Script resource",
 
 		Attributes: map[string]schema.Attribute{
 			"id": schema.Int64Attribute{
 				Required:            true,
-				MarkdownDescription: "Script identifier",
+				MarkdownDescription: "V2Script identifier",
 			},
 			"title": schema.StringAttribute{
 				MarkdownDescription: "The title of the script.",
@@ -132,7 +132,7 @@ func (r *ScriptResource) Schema(ctx context.Context, req resource.SchemaRequest,
 			},
 			"attachments": schema.DynamicAttribute{
 				Computed:            true,
-				MarkdownDescription: "Script attachments (list of strings or objects). Unforuntately, the API returns both 'V1' and 'V2' scripts from the same endpoint, and the return type of `attachments` is different. It is initially a dynamic type that is determined to be legacy (list of strings) or 'modern' (list of objects).",
+				MarkdownDescription: "V2Script attachments (list of strings or objects). Unforuntately, the API returns both 'V1' and 'V2' scripts from the same endpoint, and the return type of `attachments` is different. It is initially a dynamic type that is determined to be legacy (list of strings) or 'modern' (list of objects).",
 			},
 			"script_profiles": schema.ListNestedAttribute{
 				Computed: true,
@@ -148,7 +148,7 @@ func (r *ScriptResource) Schema(ctx context.Context, req resource.SchemaRequest,
 	}
 }
 
-func (r *ScriptResource) Configure(ctx context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
+func (r *V2ScriptResource) Configure(ctx context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
 	// Prevent panic if the provider has not been configured.
 	if req.ProviderData == nil {
 		return
@@ -168,8 +168,8 @@ func (r *ScriptResource) Configure(ctx context.Context, req resource.ConfigureRe
 	r.client = client
 }
 
-func (r *ScriptResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
-	var data ScriptResourceModel
+func (r *V2ScriptResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
+	var data V2ScriptResourceModel
 
 	// Read Terraform plan data into the model
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &data)...)
@@ -198,8 +198,8 @@ func (r *ScriptResource) Create(ctx context.Context, req resource.CreateRequest,
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }
 
-func (r *ScriptResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
-	var data ScriptResourceModel
+func (r *V2ScriptResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
+	var data V2ScriptResourceModel
 
 	// Read Terraform prior state data into the model
 	resp.Diagnostics.Append(req.State.Get(ctx, &data)...)
@@ -220,8 +220,8 @@ func (r *ScriptResource) Read(ctx context.Context, req resource.ReadRequest, res
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }
 
-func (r *ScriptResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
-	var data ScriptResourceModel
+func (r *V2ScriptResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
+	var data V2ScriptResourceModel
 
 	// Read Terraform plan data into the model
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &data)...)
@@ -242,8 +242,8 @@ func (r *ScriptResource) Update(ctx context.Context, req resource.UpdateRequest,
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }
 
-func (r *ScriptResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
-	var data ScriptResourceModel
+func (r *V2ScriptResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
+	var data V2ScriptResourceModel
 
 	// Read Terraform prior state data into the model
 	resp.Diagnostics.Append(req.State.Get(ctx, &data)...)
@@ -261,6 +261,6 @@ func (r *ScriptResource) Delete(ctx context.Context, req resource.DeleteRequest,
 	// }
 }
 
-func (r *ScriptResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+func (r *V2ScriptResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
 	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
 }
