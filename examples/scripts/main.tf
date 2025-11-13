@@ -11,9 +11,9 @@ provider "landscape" {
 }
 
 data "landscape_v1_script" "my_v1_script" {
-  id = 21433
+  id = 21434
 }
 
 data "landscape_v2_script" "my_v2_script" {
-  id = 21434
+  id = 21433
 }

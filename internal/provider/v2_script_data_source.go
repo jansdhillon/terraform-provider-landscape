@@ -178,7 +178,7 @@ func (d *v2ScriptDataSource) Read(ctx context.Context, req datasource.ReadReques
 		return
 	}
 
-	scriptRes, err := d.client.GetScriptWithResponse(ctx, landscape.ScriptIdPathParam(int(idValue.ValueInt64())))
+	scriptRes, err := d.client.GetScriptWithResponse(ctx, landscape.ScriptIdPathParam(idValue.ValueInt64()))
 	if err != nil {
 		resp.Diagnostics.AddError("Failed to read script", err.Error())
 		return
@@ -197,7 +197,7 @@ func (d *v2ScriptDataSource) Read(ctx context.Context, req datasource.ReadReques
 		return
 	}
 
-	state := v2ScriptDataSourceModel(v2Script)
+	state := v2Script
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
 }

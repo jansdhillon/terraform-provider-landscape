@@ -6,11 +6,15 @@ package provider
 import (
 	"context"
 	"fmt"
+	"net/url"
+	"strconv"
 
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/datasource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/hashicorp/terraform-plugin-log/tflog"
+	"github.com/jansdhillon/landscape-go-api-client/client"
 	landscape "github.com/jansdhillon/landscape-go-api-client/client"
 )
 
@@ -26,7 +30,12 @@ type v1ScriptDataSource struct {
 	client *landscape.ClientWithResponses
 }
 
-type v1ScriptDataSourceModel = landscape.V1Script
+type v1ScriptDataModel struct {
+	landscape.V1Script
+	Code string `tfsdk:"code"`
+}
+
+type v1ScriptDataSourceModel = v1ScriptDataModel
 
 func (d *v1ScriptDataSource) Metadata(ctx context.Context, req datasource.MetadataRequest, resp *datasource.MetadataResponse) {
 	resp.TypeName = req.ProviderTypeName + "_v1_script"
@@ -59,6 +68,11 @@ func (d *v1ScriptDataSource) Schema(ctx context.Context, req datasource.SchemaRe
 					"email": schema.StringAttribute{Computed: true, Optional: true},
 				},
 				MarkdownDescription: "The creator of the (legacy) script.",
+			},
+			"code": schema.StringAttribute{
+				Computed:            true,
+				MarkdownDescription: "The raw script content (does not split interpreter and code portion).",
+				Optional:            true,
 			},
 			"status": schema.StringAttribute{
 				Optional:            true,
@@ -114,11 +128,13 @@ func (d *v1ScriptDataSource) Read(ctx context.Context, req datasource.ReadReques
 		return
 	}
 
-	scriptRes, err := d.client.GetScriptWithResponse(ctx, landscape.ScriptIdPathParam(int(idValue.ValueInt64())))
+	scriptRes, err := d.client.GetScriptWithResponse(ctx, landscape.ScriptIdPathParam(idValue.ValueInt64()))
 	if err != nil {
 		resp.Diagnostics.AddError("Failed to read script", err.Error())
 		return
 	}
+
+	tflog.Debug(ctx, fmt.Sprintf("raw v1 script 200 response: %s", scriptRes.JSON200))
 
 	if scriptRes.JSON200 == nil {
 		resp.Diagnostics.AddError("Failed to get script", "An error occurred getting the script.")
@@ -132,7 +148,25 @@ func (d *v1ScriptDataSource) Read(ctx context.Context, req datasource.ReadReques
 		resp.Diagnostics.AddError("Failed to convert into (legacy) V1 script", "Couldn't convert returned script into a V1 script (is it a modern, V2 script?)")
 	}
 
-	state := v1ScriptDataSourceModel(v1Script)
+	getCodeParams := landscape.LegacyActionParams("GetScriptCode")
+	queryArgsEditorFn := client.EncodeQueryRequestEditor(url.Values{
+		"script_id": []string{strconv.Itoa(v1Script.Id)},
+	})
+
+	res, err := d.client.InvokeLegacyActionWithResponse(ctx, getCodeParams, queryArgsEditorFn)
+	if err != nil {
+		resp.Diagnostics.AddError("Failed to get legacy script content", "Unable to get the content of the V1 script")
+	}
+
+	code, err := res.JSON200.AsLegacyScriptCode()
+	if err != nil {
+		resp.Diagnostics.AddError("Failed to convert legacy script content into string", "Unexpected error parsing the script content as a string")
+	}
+
+	state := v1ScriptDataSourceModel{
+		V1Script: v1Script,
+		Code:     code,
+	}
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
 }

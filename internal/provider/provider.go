@@ -49,7 +49,7 @@ func (p *landscapeProvider) Schema(_ context.Context, _ provider.SchemaRequest, 
 	resp.Schema = schema.Schema{
 		Attributes: map[string]schema.Attribute{
 			"base_url": schema.StringAttribute{
-				Required:    true,
+				Optional:    true,
 				Description: "Landscape base URL. Can also be set with the LANDSCAPE_BASE_URL environment variable.",
 			},
 			"account": schema.StringAttribute{
@@ -78,7 +78,7 @@ func (p *landscapeProvider) Schema(_ context.Context, _ provider.SchemaRequest, 
 	}
 }
 
-// landscapeProviderModel maps provider schema data to a Go type
+// landscapeProviderModel maps provider schema data to a Go type.
 type landscapeProviderModel struct {
 	BaseURL   types.String `tfsdk:"base_url"`
 	Account   types.String `tfsdk:"account"`
@@ -96,9 +96,6 @@ func (p *landscapeProvider) Configure(ctx context.Context, req provider.Configur
 	if resp.Diagnostics.HasError() {
 		return
 	}
-
-	// If practitioner provided a configuration value for any of the
-	// attributes, it must be a known value.
 
 	if config.BaseURL.IsUnknown() {
 		resp.Diagnostics.AddAttributeError(
@@ -200,21 +197,19 @@ func (p *landscapeProvider) Configure(ctx context.Context, req provider.Configur
 		)
 	}
 
-	// Check that we have either email/password OR access_key/secret_key authentication
 	hasEmailAuth := email != "" && password != ""
 	hasKeyAuth := accessKey != "" && secretKey != ""
 
 	if !hasEmailAuth && !hasKeyAuth {
 		resp.Diagnostics.AddError(
 			"Missing Authentication Credentials",
-			"The provider requires either email/password authentication OR access_key/secret_key authentication. "+
+			"The provider requires either email/password authentication or access_key/secret_key authentication. "+
 				"Provide either an email and password (and, optionally, an account) or an access_key and secret_key."+
 				"Set the values in the configuration or use the corresponding environment variables: "+
 				"LANDSCAPE_EMAIL, LANDSCAPE_PASSWORD, LANDSCAPE_ACCOUNT or LANDSCAPE_ACCESS_KEY, LANDSCAPE_SECRET_KEY.",
 		)
 	}
 
-	// If using email auth but missing one credential
 	if (email != "" && password == "") || (email == "" && password != "") {
 		resp.Diagnostics.AddError(
 			"Incomplete Email Authentication",
@@ -223,7 +218,6 @@ func (p *landscapeProvider) Configure(ctx context.Context, req provider.Configur
 		)
 	}
 
-	// If using key auth but missing one credential
 	if (accessKey != "" && secretKey == "") || (accessKey == "" && secretKey != "") {
 		resp.Diagnostics.AddError(
 			"Incomplete Access Key Authentication",

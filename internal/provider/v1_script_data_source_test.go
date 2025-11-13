@@ -13,16 +13,17 @@ import (
 	"github.com/hashicorp/terraform-plugin-testing/tfjsonpath"
 )
 
-func TestAccExampleDataSource(t *testing.T) {
+// Acceptance tests for the V1 script data source.
+func TestAccV1ScriptDataSource(t *testing.T) {
 	resource.Test(t, resource.TestCase{
 		PreCheck:                 func() { testAccPreCheck(t) },
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
 			{
-				Config: testAccExampleDataSourceConfig,
+				Config: testAccScriptDataSourceConfig,
 				ConfigStateChecks: []statecheck.StateCheck{
 					statecheck.ExpectKnownValue(
-						"data.landscape_script.test",
+						"data.landscape_v1_script.test",
 						tfjsonpath.New("id"),
 						knownvalue.NumberExact(big.NewFloat(1)),
 					),
@@ -32,8 +33,10 @@ func TestAccExampleDataSource(t *testing.T) {
 	})
 }
 
-const testAccExampleDataSourceConfig = `
-data "landscape_script" "test" {
-  id = 1
+const testAccScriptDataSourceConfig = `
+provider "landscape" {}
+
+data "landscape_v1_script" "test" {
+  id = 21434
 }
 `
