@@ -14,7 +14,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
-	"github.com/jansdhillon/landscape-go-api-client/client"
 	landscape "github.com/jansdhillon/landscape-go-api-client/client"
 )
 
@@ -52,12 +51,10 @@ func (d *v1ScriptDataSource) Schema(ctx context.Context, req datasource.SchemaRe
 			"title": schema.StringAttribute{
 				MarkdownDescription: "The title of the script.",
 				Computed:            true,
-				Optional:            true,
 			},
 			"access_group": schema.StringAttribute{
 				MarkdownDescription: "The access group the script is in.",
 				Computed:            true,
-				Optional:            true,
 			},
 			"creator": schema.SingleNestedAttribute{
 				Computed: true,
@@ -72,22 +69,21 @@ func (d *v1ScriptDataSource) Schema(ctx context.Context, req datasource.SchemaRe
 			"code": schema.StringAttribute{
 				Computed:            true,
 				MarkdownDescription: "The raw script content (does not split interpreter and code portion).",
-				Optional:            true,
 			},
 			"status": schema.StringAttribute{
-				Optional:            true,
+
 				Computed:            true,
 				MarkdownDescription: "The status of the script.",
 			},
 			"username": schema.StringAttribute{
-				Computed:            true,
-				Optional:            true,
+				Computed: true,
+
 				MarkdownDescription: "The username associated with the script.",
 			},
 			"time_limit": schema.Int64Attribute{
-				Computed:            true,
-				Optional:            true,
-				MarkdownDescription: "The time limit in milliseconds for a script to complete successfully.",
+				Computed: true,
+
+				MarkdownDescription: "The time limit in seconds for a script to complete successfully.",
 			},
 			"attachments": schema.ListAttribute{
 				Computed:            true,
@@ -149,7 +145,7 @@ func (d *v1ScriptDataSource) Read(ctx context.Context, req datasource.ReadReques
 	}
 
 	getCodeParams := landscape.LegacyActionParams("GetScriptCode")
-	queryArgsEditorFn := client.EncodeQueryRequestEditor(url.Values{
+	queryArgsEditorFn := landscape.EncodeQueryRequestEditor(url.Values{
 		"script_id": []string{strconv.Itoa(v1Script.Id)},
 	})
 

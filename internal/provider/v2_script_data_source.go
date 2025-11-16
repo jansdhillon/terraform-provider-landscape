@@ -43,26 +43,22 @@ func (d *v2ScriptDataSource) Schema(ctx context.Context, req datasource.SchemaRe
 			"title": schema.StringAttribute{
 				MarkdownDescription: "The title of the script.",
 				Computed:            true,
-				Optional:            true,
 			},
 			"access_group": schema.StringAttribute{
 				MarkdownDescription: "The access group the script is in.",
 				Computed:            true,
-				Optional:            true,
 			},
 			"code": schema.StringAttribute{
 				Computed:            true,
 				MarkdownDescription: "The script code content.",
-				Optional:            true,
 			},
 			"interpreter": schema.StringAttribute{
 				Computed:            true,
 				MarkdownDescription: "The script interpreter.",
-				Optional:            true,
 			},
 			"created_at": schema.StringAttribute{
-				Computed:            true,
-				Optional:            true,
+				Computed: true,
+
 				MarkdownDescription: "When the script was created.",
 			},
 			"created_by": schema.SingleNestedAttribute{
@@ -75,43 +71,43 @@ func (d *v2ScriptDataSource) Schema(ctx context.Context, req datasource.SchemaRe
 				MarkdownDescription: "The creator of the script.",
 			},
 			"last_edited_at": schema.StringAttribute{
-				Computed:            true,
-				Optional:            true,
+				Computed: true,
+
 				MarkdownDescription: "When the script was last edited.",
 			},
 			"status": schema.StringAttribute{
-				Optional:            true,
+
 				Computed:            true,
 				MarkdownDescription: "The status of the script.",
 			},
 			"version_number": schema.Int64Attribute{
-				Computed:            true,
-				Optional:            true,
+				Computed: true,
+
 				MarkdownDescription: "The version number of the script.",
 			},
 			"username": schema.StringAttribute{
-				Computed:            true,
-				Optional:            true,
+				Computed: true,
+
 				MarkdownDescription: "The username associated with the script.",
 			},
 			"time_limit": schema.Int64Attribute{
-				Computed:            true,
-				Optional:            true,
+				Computed: true,
+
 				MarkdownDescription: "The time limit in milliseconds for a script to complete successfully.",
 			},
 			"is_editable": schema.BoolAttribute{
-				Computed:            true,
-				Optional:            true,
+				Computed: true,
+
 				MarkdownDescription: "Whether the script is editable.",
 			},
 			"is_executable": schema.BoolAttribute{
-				Computed:            true,
-				Optional:            true,
+				Computed: true,
+
 				MarkdownDescription: "Whether the script is executable.",
 			},
 			"is_redactable": schema.BoolAttribute{
-				Computed:            true,
-				Optional:            true,
+				Computed: true,
+
 				MarkdownDescription: "Whether the script is redactable.",
 			},
 			"last_edited_by": schema.SingleNestedAttribute{

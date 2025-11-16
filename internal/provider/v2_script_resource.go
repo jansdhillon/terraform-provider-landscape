@@ -31,13 +31,13 @@ type V2ScriptResource struct {
 type V2ScriptResourceModel landscape.V2Script
 
 func (r *V2ScriptResource) Metadata(ctx context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
-	resp.TypeName = req.ProviderTypeName + "_script"
+	resp.TypeName = req.ProviderTypeName + "_v2_script"
 }
 
 func (r *V2ScriptResource) Schema(ctx context.Context, req resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
 		// This description is used by the documentation generator and the language server.
-		MarkdownDescription: "V2Script resource",
+		MarkdownDescription: "V2 Script resource",
 
 		Attributes: map[string]schema.Attribute{
 			"id": schema.Int64Attribute{
@@ -47,7 +47,6 @@ func (r *V2ScriptResource) Schema(ctx context.Context, req resource.SchemaReques
 			"title": schema.StringAttribute{
 				MarkdownDescription: "The title of the script.",
 				Computed:            true,
-				Optional:            true,
 			},
 			"access_group": schema.StringAttribute{
 				MarkdownDescription: "The access group the script is in.",
@@ -56,16 +55,14 @@ func (r *V2ScriptResource) Schema(ctx context.Context, req resource.SchemaReques
 			"code": schema.StringAttribute{
 				Computed:            true,
 				MarkdownDescription: "The script code content.",
-				Optional:            true,
 			},
 			"interpreter": schema.StringAttribute{
 				Computed:            true,
 				MarkdownDescription: "The script interpreter.",
-				Optional:            true,
 			},
 			"created_at": schema.StringAttribute{
-				Computed:            true,
-				Optional:            true,
+				Computed: true,
+
 				MarkdownDescription: "When the script was created.",
 			},
 			"created_by": schema.SingleNestedAttribute{
@@ -88,12 +85,12 @@ func (r *V2ScriptResource) Schema(ctx context.Context, req resource.SchemaReques
 				MarkdownDescription: "The creator of the (legacy) script.",
 			},
 			"last_edited_at": schema.StringAttribute{
-				Computed:            true,
-				Optional:            true,
+				Computed: true,
+
 				MarkdownDescription: "When the script was last edited.",
 			},
 			"status": schema.StringAttribute{
-				Optional:            true,
+
 				Computed:            true,
 				MarkdownDescription: "The status of the script.",
 			},

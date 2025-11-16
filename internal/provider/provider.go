@@ -186,7 +186,6 @@ func (p *landscapeProvider) Configure(ctx context.Context, req provider.Configur
 		account = config.Account.ValueString()
 	}
 
-	// Validate required configurations
 	if baseURL == "" {
 		resp.Diagnostics.AddAttributeError(
 			path.Root("base_url"),
@@ -266,5 +265,8 @@ func (p *landscapeProvider) DataSources(_ context.Context) []func() datasource.D
 
 // Resources defines the resources implemented in the provider.
 func (p *landscapeProvider) Resources(_ context.Context) []func() resource.Resource {
-	return nil
+	return []func() resource.Resource{
+		NewV1ScriptResource,
+		NewV2ScriptResource,
+	}
 }
