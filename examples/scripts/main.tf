@@ -11,21 +11,22 @@ provider "landscape" {
 }
 
 resource "landscape_script" "v1" {
-  title        = uuid()
+  title        = "dead script walkig"
   code         = file("v1.sh")
   username     = "jan"
   time_limit   = 500
   access_group = "global"
 }
 
-resource "landscape_script" "v2" {
-  title        = "dead script walkig"
+resource "landscape_script" "active" {
+  title        = "dead script walkig2"
   code         = file("v2.sh")
   username     = "jan"
   time_limit   = 500
   access_group = "global"
-
+  status       = "ACTIVE"
 }
+
 
 
 data "landscape_script" "v1" {
@@ -34,10 +35,10 @@ data "landscape_script" "v1" {
   depends_on = [landscape_script.v1]
 }
 
-data "landscape_script" "v2" {
+data "landscape_script" "active" {
   id = 21671
 
-  depends_on = [landscape_script.v2]
+  depends_on = [landscape_script.active]
 }
 
 
@@ -46,7 +47,7 @@ output "v1_script" {
 }
 
 output "v2_script" {
-  value = landscape_script.v2
+  value = landscape_script.active
 }
 
 output "data_v1" {
@@ -54,5 +55,5 @@ output "data_v1" {
 }
 
 output "data_v2" {
-  value = data.landscape_script.v2
+  value = data.landscape_script.active
 }
