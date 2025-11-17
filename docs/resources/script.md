@@ -17,7 +17,7 @@ Script resource
 
 ### Required
 
-- `code` (String) The raw script code content. Note that this does NOT split on the interpreter/executable portion.
+- `code` (String, Sensitive) The raw script code content. Note that this does NOT split on the interpreter/executable portion.
 - `title` (String) The title of the script.
 
 ### Optional
@@ -32,13 +32,13 @@ Script resource
 - `last_edited_at` (String) When the script was last edited. Not applicable for V1 scripts.
 - `last_edited_by` (Attributes) The (Landscape) user who last edited the script. (see [below for nested schema](#nestedatt--last_edited_by))
 - `script_profiles` (Attributes List) List of script profiles for V2+ scripts. (see [below for nested schema](#nestedatt--script_profiles))
+- `status` (String) The status of the script (ACTIVE, ARCHIVED, or REDACTED), or V1 for legacy scripts. This also determines the script version on create.
 - `time_limit` (Number) The time limit in second for a script to complete successfully.
 - `username` (String) The Linux user that will run the script on the Landscape Client instance.
 
 ### Read-Only
 
 - `id` (Number) Script identifier for this account in Landscape.
-- `status` (String) The status of the script (active, archived, or redacted), or V1 for legacy scripts.
 - `version_number` (Number) The version number of the script. Note that V1 scripts are unversioned.
 
 <a id="nestedatt--attachments"></a>
