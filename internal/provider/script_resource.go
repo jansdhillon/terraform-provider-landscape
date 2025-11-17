@@ -122,6 +122,7 @@ var scriptResourceSchema = resourceschema.Schema{
 		},
 		"code": resourceschema.StringAttribute{
 			Required:            true,
+			Sensitive:           true,
 			MarkdownDescription: "The raw script code content. Note that this does NOT split on the interpreter/executable portion.",
 		},
 		"created_at": resourceschema.StringAttribute{
@@ -562,6 +563,17 @@ func fetchV1Code(ctx context.Context, client *landscape.ClientWithResponses, id 
 	)
 	if err != nil {
 		diags.AddError("code fetch failed", err.Error())
+		return "", diags
+	}
+
+	if codeRes.JSON200 == nil {
+		errMsg := "unexpected response fetching V1 script code"
+		if codeRes.JSON400 != nil && codeRes.JSON400.Message != nil {
+			errMsg = fmt.Sprintf("%s: %s", errMsg, *codeRes.JSON400.Message)
+		} else {
+			errMsg = fmt.Sprintf("%s: %s", errMsg, codeRes.Status())
+		}
+		diags.AddError("code fetch failed", errMsg)
 		return "", diags
 	}
 

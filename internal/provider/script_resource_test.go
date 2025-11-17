@@ -37,11 +37,7 @@ func TestAccScriptResourceInvalidType(t *testing.T) {
 }
 
 const testAccScriptResourceInvalidConfig = `
-provider "landscape" {
-  base_url   = "https://example.invalid"
-  access_key = "test"
-  secret_key = "test"
-}
+provider "landscape" {}
 
 resource "landscape_script" "test" {
   title       = "invalid script type"

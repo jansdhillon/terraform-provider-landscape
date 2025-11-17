@@ -37,11 +37,7 @@ func TestAccScriptDataSourceRequiresID(t *testing.T) {
 }
 
 const testAccScriptDataSourceMissingIDConfig = `
-provider "landscape" {
-  base_url   = "https://example.invalid"
-  access_key = "test"
-  secret_key = "test"
-}
+provider "landscape" {}
 
 data "landscape_script" "test" {}
 `
