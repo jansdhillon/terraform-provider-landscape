@@ -21,4 +21,7 @@ test:
 testacc:
 	TF_ACC=1 go test -v -cover -timeout 120m ./...
 
-.PHONY: fmt lint test testacc build install generate
+.PHONY: fmt lint test testacc build install generate mantest
+
+mantest:
+	go install . && cd examples/scripts && TF_LOG=INFO terraform apply -auto-approve || true && cd ../..

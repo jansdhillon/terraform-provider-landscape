@@ -206,7 +206,7 @@ func (d *ScriptDataSource) Read(ctx context.Context, req datasource.ReadRequest,
 		return
 	}
 
-	state, diags := v1ToState(ctx, d.client, v1Script, "V1")
+	state, diags := v1ScriptToState(ctx, d.client, v1Script, "V1")
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return

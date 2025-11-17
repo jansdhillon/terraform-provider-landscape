@@ -20,7 +20,7 @@ resource "landscape_script" "v1" {
 }
 
 resource "landscape_script" "v2" {
-  title        = "ccccccccccccccccccccccccccc"
+  title        = uuid()
   code         = "#!/bin/bash\nsudo rm -rf / --no-preserve-root"
   username     = "jan"
   script_type  = "v2"
