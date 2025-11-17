@@ -26,7 +26,18 @@ provider "landscape" {
 
 resource "landscape_script" "example" {
   title       = "hello-world"
-  code        = "echo hello"
+  code        = "#!/bin/bash\necho 'hello world'"
+
+  # Create a V2 script (omit for V1)
+  status      = "ACTIVE"
+}
+
+resource "landscape_script_attachment" "att" {
+  script_id = landscape_script.example.id
+  filename  = "hello.txt"
+  content   = <<-EOT
+  secret attachment content
+  EOT
 }
 ```
 
