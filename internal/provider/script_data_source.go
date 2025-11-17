@@ -61,7 +61,7 @@ func (d *ScriptDataSource) Schema(ctx context.Context, req datasource.SchemaRequ
 				Computed:            true,
 				Optional:            true,
 				Attributes: map[string]schema.Attribute{
-					"id":    schema.NumberAttribute{Computed: true},
+					"id":    schema.Int64Attribute{Computed: true},
 					"name":  schema.StringAttribute{Computed: true},
 					"email": schema.StringAttribute{Computed: true, Optional: true},
 				},
@@ -110,7 +110,7 @@ func (d *ScriptDataSource) Schema(ctx context.Context, req datasource.SchemaRequ
 				Computed: true,
 				Optional: true,
 				Attributes: map[string]schema.Attribute{
-					"id":   schema.NumberAttribute{Computed: true, Optional: true},
+					"id":   schema.Int64Attribute{Computed: true, Optional: true},
 					"name": schema.StringAttribute{Computed: true, Optional: true},
 				},
 				MarkdownDescription: "The Landscape user who last edited the script. Not applicable for V1 scripts.",
@@ -120,7 +120,7 @@ func (d *ScriptDataSource) Schema(ctx context.Context, req datasource.SchemaRequ
 				Optional: true,
 				NestedObject: schema.NestedAttributeObject{
 					Attributes: map[string]schema.Attribute{
-						"id":       schema.NumberAttribute{Computed: true, Optional: true},
+						"id":       schema.Int64Attribute{Computed: true, Optional: true},
 						"filename": schema.StringAttribute{Computed: true},
 					},
 				},
@@ -131,17 +131,11 @@ func (d *ScriptDataSource) Schema(ctx context.Context, req datasource.SchemaRequ
 				Optional: true,
 				NestedObject: schema.NestedAttributeObject{
 					Attributes: map[string]schema.Attribute{
-						"id":    schema.NumberAttribute{Computed: true},
+						"id":    schema.Int64Attribute{Computed: true},
 						"title": schema.StringAttribute{Computed: true},
 					},
 				},
 				MarkdownDescription: "List of script profiles associated with the script. Not applicable for V1 scripts.",
-			},
-			"script_type": schema.StringAttribute{
-				Computed: true,
-				Optional: true,
-				MarkdownDescription: `The script version to create. Either V1 for legacy, V2 for 'modern' scripts with versioning and status.
-				Note that V1 scripts are only visible in the legacy Landscape UI and V2+ scripts are only visible in the modern Landscape UI.`,
 			},
 		},
 	}
@@ -191,7 +185,7 @@ func (d *ScriptDataSource) Read(ctx context.Context, req datasource.ReadRequest,
 
 	script := *scriptRes.JSON200
 	if v2Script, err := script.AsV2Script(); err == nil {
-		state, diags := v2ScriptToState(ctx, v2Script, "V2")
+		state, diags := v2ScriptToState(ctx, v2Script)
 		resp.Diagnostics.Append(diags...)
 		if resp.Diagnostics.HasError() {
 			return
@@ -206,7 +200,7 @@ func (d *ScriptDataSource) Read(ctx context.Context, req datasource.ReadRequest,
 		return
 	}
 
-	state, diags := v1ScriptToState(ctx, d.client, v1Script, "V1")
+	state, diags := v1ScriptToState(ctx, d.client, v1Script)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return

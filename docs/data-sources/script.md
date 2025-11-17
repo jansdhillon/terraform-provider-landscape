@@ -31,8 +31,6 @@ Script data source
 - `last_edited_at` (String) When the script was last edited. Not applicable for V1 scripts.
 - `last_edited_by` (Attributes) The Landscape user who last edited the script. Not applicable for V1 scripts. (see [below for nested schema](#nestedatt--last_edited_by))
 - `script_profiles` (Attributes List) List of script profiles associated with the script. Not applicable for V1 scripts. (see [below for nested schema](#nestedatt--script_profiles))
-- `script_type` (String) The script version to create. Either V1 for legacy, V2 for 'modern' scripts with versioning and status.
-				Note that V1 scripts are only visible in the legacy Landscape UI and V2+ scripts are only visible in the modern Landscape UI.
 - `time_limit` (Number) The time limit in second for a script to complete successfully.
 - `username` (String) The Linux user that will run the script on the Landscape Client instance.
 

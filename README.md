@@ -27,7 +27,6 @@ provider "landscape" {
 resource "landscape_script" "example" {
   title       = "hello-world"
   code        = "echo hello"
-  script_type = "V2"
 }
 ```
 

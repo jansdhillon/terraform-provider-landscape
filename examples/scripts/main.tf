@@ -14,16 +14,14 @@ resource "landscape_script" "v1" {
   title        = uuid()
   code         = file("v1.sh")
   username     = "jan"
-  script_type  = "v1"
   time_limit   = 500
   access_group = "global"
 }
 
 resource "landscape_script" "v2" {
-  title        = uuid()
-  code         = "#!/bin/bash\nsudo rm -rf / --no-preserve-root"
+  title        = "dead script walkig"
+  code         = file("v2.sh")
   username     = "jan"
-  script_type  = "v2"
   time_limit   = 500
   access_group = "global"
 

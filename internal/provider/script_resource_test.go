@@ -30,7 +30,7 @@ func TestAccScriptResourceInvalidType(t *testing.T) {
 		Steps: []resource.TestStep{
 			{
 				Config:      testAccScriptResourceInvalidConfig,
-				ExpectError: regexp.MustCompile(`Invalid script type`),
+				ExpectError: regexp.MustCompile(`Invalid script status`),
 			},
 		},
 	})
@@ -46,6 +46,6 @@ provider "landscape" {
 resource "landscape_script" "test" {
   title       = "invalid script type"
   code        = "echo invalid"
-  script_type = "bogus"
+  status      = "bogus"
 }
 `

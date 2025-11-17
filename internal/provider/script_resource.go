@@ -6,7 +6,6 @@ package provider
 import (
 	"context"
 	"encoding/base64"
-	"encoding/json"
 	"fmt"
 	"net/url"
 	"strconv"
@@ -41,7 +40,6 @@ type ScriptResourceModel struct {
 	Id             types.Int64  `tfsdk:"id"`
 	Title          types.String `tfsdk:"title"`
 	AccessGroup    types.String `tfsdk:"access_group"`
-	ScriptType     types.String `tfsdk:"script_type"`
 	Code           types.String `tfsdk:"code"`
 	CreatedAt      types.String `tfsdk:"created_at"`
 	CreatedBy      types.Object `tfsdk:"created_by"`
@@ -81,24 +79,27 @@ var scriptAttachmentAttrType = map[string]attr.Type{
 
 // scriptCreateOpts defines script creation options.
 type scriptCreateOpts struct {
-	Title           string
-	CodeB64         string
-	Username        *string
-	TimeLimit       *int64
-	ScriptType      string
-	AccessGroup     *string
-	StateScriptType string
+	Title       string
+	CodeB64     string
+	Username    *string
+	TimeLimit   *int64
+	ScriptType  string
+	AccessGroup *string
 }
 
-func newScriptCreateOpts(title, codeAttr, username types.String, timeLimit types.Int64, scriptType, accessGroup types.String) scriptCreateOpts {
+func newScriptCreateOpts(title, codeAttr, username types.String, timeLimit types.Int64, status, accessGroup types.String) scriptCreateOpts {
+	scriptType := "V1"
+	if !status.IsNull() && !status.IsUnknown() && strings.ToUpper(status.ValueString()) != "V1" {
+		scriptType = "V2"
+	}
+
 	return scriptCreateOpts{
-		Title:           title.ValueString(),
-		CodeB64:         base64.StdEncoding.EncodeToString([]byte(codeAttr.ValueString())),
-		Username:        username.ValueStringPointer(),
-		TimeLimit:       timeLimit.ValueInt64Pointer(),
-		ScriptType:      scriptType.ValueString(),
-		AccessGroup:     accessGroup.ValueStringPointer(),
-		StateScriptType: scriptType.ValueString(),
+		Title:       title.ValueString(),
+		CodeB64:     base64.StdEncoding.EncodeToString([]byte(codeAttr.ValueString())),
+		Username:    username.ValueStringPointer(),
+		TimeLimit:   timeLimit.ValueInt64Pointer(),
+		ScriptType:  scriptType,
+		AccessGroup: accessGroup.ValueStringPointer(),
 	}
 }
 
@@ -133,7 +134,7 @@ var scriptResourceSchema = resourceschema.Schema{
 			Computed:            true,
 			Optional:            true,
 			Attributes: map[string]resourceschema.Attribute{
-				"id":    resourceschema.NumberAttribute{Computed: true},
+				"id":    resourceschema.Int64Attribute{Computed: true},
 				"name":  resourceschema.StringAttribute{Computed: true},
 				"email": resourceschema.StringAttribute{Computed: true, Optional: true},
 			},
@@ -144,8 +145,10 @@ var scriptResourceSchema = resourceschema.Schema{
 			Optional:            true,
 		},
 		"status": resourceschema.StringAttribute{
+			Optional:            true,
 			Computed:            true,
-			MarkdownDescription: "The status of the script (active, archived, or redacted), or V1 for legacy scripts.",
+			Default:             stringdefault.StaticString("V1"),
+			MarkdownDescription: "The status of the script (ACTIVE, ARCHIVED, or REDACTED), or V1 for legacy scripts. This also determines the script version on create.",
 		},
 		"version_number": resourceschema.Int64Attribute{
 			Computed:            true,
@@ -180,7 +183,7 @@ var scriptResourceSchema = resourceschema.Schema{
 			Computed: true,
 			Optional: true,
 			Attributes: map[string]resourceschema.Attribute{
-				"id":   resourceschema.NumberAttribute{Computed: true, Optional: true},
+				"id":   resourceschema.Int64Attribute{Computed: true, Optional: true},
 				"name": resourceschema.StringAttribute{Computed: true, Optional: true},
 			},
 			MarkdownDescription: "The (Landscape) user who last edited the script.",
@@ -190,7 +193,7 @@ var scriptResourceSchema = resourceschema.Schema{
 			Optional: true,
 			NestedObject: resourceschema.NestedAttributeObject{
 				Attributes: map[string]resourceschema.Attribute{
-					"id":       resourceschema.NumberAttribute{Computed: true, Optional: true},
+					"id":       resourceschema.Int64Attribute{Computed: true, Optional: true},
 					"filename": resourceschema.StringAttribute{Computed: true},
 				},
 			},
@@ -201,17 +204,11 @@ var scriptResourceSchema = resourceschema.Schema{
 			Optional: true,
 			NestedObject: resourceschema.NestedAttributeObject{
 				Attributes: map[string]resourceschema.Attribute{
-					"id":    resourceschema.NumberAttribute{Computed: true},
+					"id":    resourceschema.Int64Attribute{Computed: true},
 					"title": resourceschema.StringAttribute{Computed: true},
 				},
 			},
 			MarkdownDescription: "List of script profiles for V2+ scripts.",
-		},
-		"script_type": resourceschema.StringAttribute{
-			Optional:            true,
-			Computed:            true,
-			Default:             stringdefault.StaticString("V1"),
-			MarkdownDescription: "The script vesrsion indicator (V1 for legacy, V2 for modern scripts).",
 		},
 	},
 }
@@ -248,22 +245,18 @@ func (r *ScriptResource) Create(ctx context.Context, req resource.CreateRequest,
 	var codeAttr types.String
 	var username types.String
 	var timeLimit types.Int64
-	var gotScriptType types.String
-	var rawScriptType string
-	var stateScriptType string
+	var statusAttr types.String
 	var accessGroup types.String
 
 	resp.Diagnostics.Append(req.Plan.GetAttribute(ctx, path.Root("title"), &title)...)
 	resp.Diagnostics.Append(req.Plan.GetAttribute(ctx, path.Root("code"), &codeAttr)...)
 	resp.Diagnostics.Append(req.Plan.GetAttribute(ctx, path.Root("username"), &username)...)
 	resp.Diagnostics.Append(req.Plan.GetAttribute(ctx, path.Root("time_limit"), &timeLimit)...)
-	resp.Diagnostics.Append(req.Plan.GetAttribute(ctx, path.Root("script_type"), &gotScriptType)...)
+	resp.Diagnostics.Append(req.Plan.GetAttribute(ctx, path.Root("status"), &statusAttr)...)
 	resp.Diagnostics.Append(req.Plan.GetAttribute(ctx, path.Root("access_group"), &accessGroup)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
-
-	tflog.Info(ctx, fmt.Sprintf("script_type: %s", gotScriptType))
 
 	if title.IsNull() || title.IsUnknown() {
 		resp.Diagnostics.AddError("Missing title", "`title` must be set.")
@@ -275,22 +268,27 @@ func (r *ScriptResource) Create(ctx context.Context, req resource.CreateRequest,
 		return
 	}
 
-	if gotScriptType.IsNull() || gotScriptType.IsUnknown() {
-		resp.Diagnostics.AddError("Missing script type", "`script_type` must be set.")
+	statusValue := "V1"
+	if !statusAttr.IsNull() && !statusAttr.IsUnknown() {
+		statusValue = strings.ToUpper(statusAttr.ValueString())
+	}
+
+	validStatuses := map[string]bool{"V1": true, "ACTIVE": true, "ARCHIVED": true, "REDACTED": true}
+	if !validStatuses[statusValue] {
+		resp.Diagnostics.AddError("Invalid script status", "`status` must be V1 (legacy) or one of ACTIVE/ARCHIVED/REDACTED for V2.")
 		return
 	}
 
-	stateScriptType = gotScriptType.ValueString()
-	rawScriptType = strings.ToUpper(stateScriptType)
-	opts := newScriptCreateOpts(title, codeAttr, username, timeLimit, gotScriptType, accessGroup)
+	statusAttr = types.StringValue(statusValue)
+	opts := newScriptCreateOpts(title, codeAttr, username, timeLimit, statusAttr, accessGroup)
 
-	switch rawScriptType {
+	switch opts.ScriptType {
 	case "V2":
 		r.createV2(ctx, resp, opts)
 	case "V1":
 		r.createV1(ctx, resp, opts)
 	default:
-		resp.Diagnostics.AddError("Invalid script type", "`script_type` must be either V1 or V2.")
+		resp.Diagnostics.AddError("Invalid script status", "`status` must be V1 (legacy) or one of ACTIVE/ARCHIVED/REDACTED for V2.")
 	}
 }
 
@@ -334,7 +332,7 @@ func (r *ScriptResource) createV2(ctx context.Context, resp *resource.CreateResp
 		return
 	}
 
-	state, diags := v2ScriptToState(ctx, v2, opts.StateScriptType)
+	state, diags := v2ScriptToState(ctx, v2)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -395,7 +393,7 @@ func (r *ScriptResource) createV1(ctx context.Context, resp *resource.CreateResp
 		return
 	}
 
-	state, diags := v1ScriptWithCodeToState(ctx, v1, rawCode, opts.StateScriptType)
+	state, diags := v1ScriptWithCodeToState(ctx, v1, rawCode)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -418,7 +416,7 @@ func (r *ScriptResource) Read(ctx context.Context, req resource.ReadRequest, res
 		return
 	}
 
-	state, diags := r.readScript(ctx, current.Id.ValueInt64(), current.ScriptType.ValueString())
+	state, diags := r.readScript(ctx, current.Id.ValueInt64())
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -502,12 +500,12 @@ func (r *ScriptResource) updateScript(ctx context.Context, plan, state ScriptRes
 		return nil, resp.Diagnostics
 	}
 
-	newState, diags := r.readScript(ctx, state.Id.ValueInt64(), state.ScriptType.ValueString())
+	newState, diags := r.readScript(ctx, state.Id.ValueInt64())
 
 	return newState, diags
 }
 
-func (r *ScriptResource) readScript(ctx context.Context, id int64, stateScriptType string) (*ScriptResourceModel, diag.Diagnostics) {
+func (r *ScriptResource) readScript(ctx context.Context, id int64) (*ScriptResourceModel, diag.Diagnostics) {
 	var diags diag.Diagnostics
 
 	scriptRes, err := r.client.GetScriptWithResponse(ctx, landscape.ScriptIdPathParam(id))
@@ -526,23 +524,16 @@ func (r *ScriptResource) readScript(ctx context.Context, id int64, stateScriptTy
 		return nil, diags
 	}
 
-	var scriptStatus string
-	if len(scriptRes.Body) > 0 {
-		var statusProbe struct {
-			Status string `json:"status"`
-		}
-		if err := json.Unmarshal(scriptRes.Body, &statusProbe); err == nil {
-			scriptStatus = strings.ToUpper(statusProbe.Status)
-		} else {
-			tflog.Warn(ctx, "Failed to parse script status from response body", map[string]interface{}{"error": err.Error()})
-		}
+	scriptStatus, err := scriptRes.JSON200.Discriminator()
+
+	if err != nil {
+		diags.AddError("Failed to read script", fmt.Sprintf("Error getting script: %s", err))
+		return nil, diags
 	}
 
-	// The API returns "V1" for legacy scripts and lifecycle statuses like ACTIVE/ARCHIVED for modern scripts.
-	// The generated ValueByDiscriminator expects "V1Script" or "V2Script", so we branch manually.
 	if scriptStatus == "V1" {
 		if v1, err := scriptRes.JSON200.AsV1Script(); err == nil {
-			state, stateDiags := v1ScriptToState(ctx, r.client, v1, stateScriptType)
+			state, stateDiags := v1ScriptToState(ctx, r.client, v1)
 			diags.Append(stateDiags...)
 			tflog.Info(ctx, "read script as V1")
 			return &state, diags
@@ -551,7 +542,7 @@ func (r *ScriptResource) readScript(ctx context.Context, id int64, stateScriptTy
 	}
 
 	if v2, err := scriptRes.JSON200.AsV2Script(); err == nil {
-		state, stateDiags := v2ScriptToState(ctx, v2, stateScriptType)
+		state, stateDiags := v2ScriptToState(ctx, v2)
 		diags.Append(stateDiags...)
 		tflog.Info(ctx, "read script as V2")
 		return &state, diags
@@ -587,15 +578,15 @@ func int64Ptr(i int64) *int64 {
 	return &i
 }
 
-func v1ScriptToState(ctx context.Context, client *landscape.ClientWithResponses, v1 landscape.V1Script, stateScriptType string) (ScriptResourceModel, diag.Diagnostics) {
+func v1ScriptToState(ctx context.Context, client *landscape.ClientWithResponses, v1 landscape.V1Script) (ScriptResourceModel, diag.Diagnostics) {
 	raw, diags := fetchV1Code(ctx, client, v1.Id)
 	if diags.HasError() {
 		return ScriptResourceModel{}, diags
 	}
-	return v1ScriptWithCodeToState(ctx, v1, raw, stateScriptType)
+	return v1ScriptWithCodeToState(ctx, v1, raw)
 }
 
-func v1ScriptWithCodeToState(ctx context.Context, v1 landscape.V1Script, rawCode string, stateScriptType string) (ScriptResourceModel, diag.Diagnostics) {
+func v1ScriptWithCodeToState(ctx context.Context, v1 landscape.V1Script, rawCode string) (ScriptResourceModel, diag.Diagnostics) {
 	var diags diag.Diagnostics
 
 	ag := types.StringNull()
@@ -640,7 +631,7 @@ func v1ScriptWithCodeToState(ctx context.Context, v1 landscape.V1Script, rawCode
 		elems := make([]attr.Value, 0, len(*v1.Attachments))
 		for _, filename := range *v1.Attachments {
 			elem, d := types.ObjectValue(scriptAttachmentAttrType, map[string]attr.Value{
-				"id":       types.NumberNull(),
+				"id":       types.Int64Null(),
 				"filename": types.StringValue(filename),
 			})
 			diags.Append(d...)
@@ -661,7 +652,6 @@ func v1ScriptWithCodeToState(ctx context.Context, v1 landscape.V1Script, rawCode
 		Id:             types.Int64Value(int64(v1.Id)),
 		Title:          types.StringValue(v1.Title),
 		AccessGroup:    ag,
-		ScriptType:     types.StringValue(stateScriptType),
 		Code:           types.StringValue(rawCode),
 		CreatedAt:      types.StringNull(),
 		CreatedBy:      creatorObj,
@@ -679,7 +669,7 @@ func v1ScriptWithCodeToState(ctx context.Context, v1 landscape.V1Script, rawCode
 	}, diags
 }
 
-func v2ScriptToState(ctx context.Context, v2Script landscape.V2Script, stateScriptType string) (ScriptResourceModel, diag.Diagnostics) {
+func v2ScriptToState(ctx context.Context, v2Script landscape.V2Script) (ScriptResourceModel, diag.Diagnostics) {
 	var diags diag.Diagnostics
 
 	createdBy := types.ObjectNull(createdByAttrTypes)
@@ -779,7 +769,6 @@ func v2ScriptToState(ctx context.Context, v2Script landscape.V2Script, stateScri
 		Id:             types.Int64Value(int64(v2Script.Id)),
 		Title:          types.StringValue(v2Script.Title),
 		AccessGroup:    types.StringPointerValue(v2Script.AccessGroup),
-		ScriptType:     types.StringValue(stateScriptType),
 		Code:           mergedCode,
 		CreatedAt:      types.StringPointerValue(v2Script.CreatedAt),
 		CreatedBy:      createdBy,
