@@ -9,6 +9,7 @@ import (
 
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/datasource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	landscape "github.com/jansdhillon/landscape-go-api-client/client"
 )
@@ -24,10 +25,11 @@ type ScriptAttachmentDataSource struct {
 	client *landscape.ClientWithResponses
 }
 
-type scriptAttachmentDataModel struct {
+type scriptAttachmentDataSourceModel struct {
 	Id       types.Int64  `tfsdk:"id"`
 	ScriptId types.Int64  `tfsdk:"script_id"`
 	Filename types.String `tfsdk:"filename"`
+	Content  types.String `tfsdk:"content"`
 }
 
 func (d *ScriptAttachmentDataSource) Metadata(ctx context.Context, req datasource.MetadataRequest, resp *datasource.MetadataResponse) {
@@ -45,10 +47,6 @@ func (d *ScriptAttachmentDataSource) Schema(ctx context.Context, req datasource.
 			"script_id": schema.Int64Attribute{
 				Required:            true,
 				MarkdownDescription: "ID of the script this attachment belongs to.",
-			},
-			"filename": schema.StringAttribute{
-				Required:            true,
-				MarkdownDescription: "Filename of the attachment.",
 			},
 		},
 	}
@@ -71,58 +69,57 @@ func (d *ScriptAttachmentDataSource) Configure(ctx context.Context, req datasour
 	d.client = client
 }
 
-func (d *ScriptAttachmentDataSource) Read(ctx context.Context, req datasource.ReadRequest, resp *datasource.ReadResponse) {
-	var cfg scriptAttachmentDataModel
-	resp.Diagnostics.Append(req.Config.Get(ctx, &cfg)...)
+func (r *ScriptAttachmentDataSource) Read(ctx context.Context, req datasource.ReadRequest, resp *datasource.ReadResponse) {
+	var state scriptAttachmentDataSourceModel
+	resp.Diagnostics.Append(req.Config.Get(ctx, &state)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	if cfg.ScriptId.IsNull() || cfg.ScriptId.IsUnknown() {
-		resp.Diagnostics.AddError("Missing script_id", "`script_id` must be set.")
-		return
-	}
-	if cfg.Filename.IsNull() || cfg.Filename.IsUnknown() {
-		resp.Diagnostics.AddError("Missing filename", "`filename` must be set.")
+	newState, diags := r.readAttachment(ctx, state.ScriptId.ValueInt64(), state.Id.ValueInt64())
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	scriptRes, err := d.client.GetScriptWithResponse(ctx, landscape.ScriptIdPathParam(cfg.ScriptId.ValueInt64()))
+	resp.Diagnostics.Append(resp.State.Set(ctx, newState)...)
+}
+
+func (r *ScriptAttachmentDataSource) readAttachment(ctx context.Context, scriptID int64, attachmentID int64) (*scriptAttachmentDataSourceModel, diag.Diagnostics) {
+	var diags diag.Diagnostics
+
+	scriptRes, err := r.client.GetScriptWithResponse(ctx, landscape.ScriptIdPathParam(scriptID))
 	if err != nil {
-		resp.Diagnostics.AddError("Failed to read script", err.Error())
-		return
+		diags.AddError("Failed to read script", err.Error())
+		return nil, diags
 	}
+
 	if scriptRes.JSON200 == nil {
-		resp.Diagnostics.AddError("Failed to read script", fmt.Sprintf("Error getting script: %s", scriptRes.Status()))
-		return
+		diags.AddError("Failed to read script", fmt.Sprintf("Error getting script: %s", scriptRes.Status()))
+		return nil, diags
 	}
 
-	v2, err := scriptRes.JSON200.AsV2Script()
+	attachmentContent, err := r.client.GetScriptAttachmentWithResponse(ctx, int(scriptID), int(attachmentID))
 	if err != nil {
-		resp.Diagnostics.AddError("Unsupported script type", "Script attachments are only available for V2 scripts.")
-		return
+		diags.AddError("Failed to read script attachment content", err.Error())
+		return nil, diags
 	}
 
-	var attachment *landscape.ScriptAttachment
-	if v2.Attachments != nil {
-		for _, a := range *v2.Attachments {
-			if a.Filename == cfg.Filename.ValueString() {
-				aCopy := a
-				attachment = &aCopy
-				break
-			}
+	if attachmentContent.JSON200 == nil {
+		if attachmentContent.JSON404 != nil {
+			diags.AddError("Script not found", *attachmentContent.JSON404.Message)
+			return nil, diags
 		}
-	}
-	if attachment == nil {
-		resp.Diagnostics.AddError("Attachment not found", fmt.Sprintf("No attachment named %q exists on script %d", cfg.Filename.ValueString(), cfg.ScriptId.ValueInt64()))
-		return
+
+		diags.AddError("Error reading script attachment", attachmentContent.Status())
+		return nil, diags
 	}
 
-	state := scriptAttachmentDataModel{
-		Id:       types.Int64Value(int64(attachment.Id)),
-		ScriptId: cfg.ScriptId,
-		Filename: cfg.Filename,
+	state := scriptAttachmentDataSourceModel{
+		Id:       types.Int64Value(attachmentID),
+		ScriptId: types.Int64Value(scriptID),
+		Content:  types.StringValue(*attachmentContent.JSON200),
 	}
 
-	resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
+	return &state, diags
 }

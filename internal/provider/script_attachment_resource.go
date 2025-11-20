@@ -8,8 +8,6 @@ import (
 	"encoding/base64"
 	"fmt"
 	"net/url"
-	"strconv"
-	"strings"
 
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
@@ -29,24 +27,23 @@ func NewScriptAttachmentResource() resource.Resource {
 	return &ScriptAttachmentResource{}
 }
 
-// ScriptAttachmentResource manages a single attachment on a script.
 type ScriptAttachmentResource struct {
 	client *landscape.ClientWithResponses
 }
 
-type ScriptAttachmentResourceModel struct {
-	Id       types.Int64  `tfsdk:"id"`        // Attachment ID (V2 only)
-	ScriptId types.Int64  `tfsdk:"script_id"` // Owning script ID
-	Filename types.String `tfsdk:"filename"`  // Attachment filename
-	Content  types.String `tfsdk:"content"`   // Raw content for upload only
+type scriptAttachmentResourceModel struct {
+	Id       types.Int64  `tfsdk:"id"`
+	ScriptId types.Int64  `tfsdk:"script_id"`
+	Filename types.String `tfsdk:"filename"`
+	Content  types.String `tfsdk:"content"`
 }
 
 var scriptAttachmentResourceSchema = resourceschema.Schema{
-	MarkdownDescription: "Script attachment resource (V2 scripts only).",
+	MarkdownDescription: "Script attachment resource.",
 	Attributes: map[string]resourceschema.Attribute{
 		"id": resourceschema.Int64Attribute{
 			Computed:            true,
-			MarkdownDescription: "Attachment identifier (V2 only).",
+			MarkdownDescription: "Attachment identifier.",
 		},
 		"script_id": resourceschema.Int64Attribute{
 			Required:            true,
@@ -59,7 +56,7 @@ var scriptAttachmentResourceSchema = resourceschema.Schema{
 		},
 		"content": resourceschema.StringAttribute{
 			Required:            true,
-			MarkdownDescription: "Attachment content (base64 encoded during upload). Not returned by the API; kept in state.",
+			MarkdownDescription: "Attachment content (base64 encoded during upload).",
 			Sensitive:           true,
 			PlanModifiers:       []planmodifier.String{stringplanmodifier.RequiresReplace()},
 		},
@@ -93,7 +90,7 @@ func (r *ScriptAttachmentResource) Configure(ctx context.Context, req resource.C
 }
 
 func (r *ScriptAttachmentResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
-	var plan ScriptAttachmentResourceModel
+	var plan scriptAttachmentResourceModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -131,7 +128,7 @@ func (r *ScriptAttachmentResource) Create(ctx context.Context, req resource.Crea
 		return
 	}
 
-	state, diags := r.readAttachment(ctx, plan.ScriptId.ValueInt64(), plan.Filename.ValueString(), plan.Content)
+	state, diags := r.readAttachment(ctx, plan.ScriptId.ValueInt64(), plan.Id.ValueInt64(), plan.Filename.ValueString())
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -140,8 +137,49 @@ func (r *ScriptAttachmentResource) Create(ctx context.Context, req resource.Crea
 	resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
 }
 
+func (r *ScriptAttachmentResource) readAttachment(ctx context.Context, scriptID int64, attachmentID int64, filename string) (*scriptAttachmentResourceModel, diag.Diagnostics) {
+	var diags diag.Diagnostics
+
+	scriptRes, err := r.client.GetScriptWithResponse(ctx, landscape.ScriptIdPathParam(scriptID))
+	if err != nil {
+		diags.AddError("Failed to read script", err.Error())
+		return nil, diags
+	}
+
+	if scriptRes.JSON200 == nil {
+		diags.AddError("Failed to read script", fmt.Sprintf("Error getting script: %s", scriptRes.Status()))
+		return nil, diags
+	}
+
+	attachmentContent, err := r.client.GetScriptAttachmentWithResponse(ctx, int(scriptID), int(attachmentID))
+	if err != nil {
+		diags.AddError("Failed to read script attachment content", err.Error())
+		return nil, diags
+	}
+
+	if attachmentContent.JSON200 == nil {
+		if attachmentContent.JSON404 != nil {
+			diags.AddError("Attachment not found", fmt.Sprintf("No attachment named %q exists on script %d", filename, scriptID))
+			return nil, diags
+		}
+
+		diags.AddError("Error reading attachments", attachmentContent.Status())
+		return nil, diags
+
+	}
+
+	state := scriptAttachmentResourceModel{
+		Id:       types.Int64Value(attachmentID),
+		ScriptId: types.Int64Value(scriptID),
+		Filename: types.StringValue(filename),
+		Content:  types.StringValue(*attachmentContent.JSON200),
+	}
+
+	return &state, diags
+}
+
 func (r *ScriptAttachmentResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
-	var state ScriptAttachmentResourceModel
+	var state scriptAttachmentResourceModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -152,7 +190,7 @@ func (r *ScriptAttachmentResource) Read(ctx context.Context, req resource.ReadRe
 		return
 	}
 
-	newState, diags := r.readAttachment(ctx, state.ScriptId.ValueInt64(), state.Filename.ValueString(), state.Content)
+	newState, diags := r.readAttachment(ctx, state.ScriptId.ValueInt64(), state.Id.ValueInt64(), state.Filename.ValueString())
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -162,12 +200,14 @@ func (r *ScriptAttachmentResource) Read(ctx context.Context, req resource.ReadRe
 }
 
 func (r *ScriptAttachmentResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
-	// All fields are force-new; Update should never be called.
-	resp.Diagnostics.AddError("Attachment Update not supported", "Attachments must be replaced.")
+	resp.Diagnostics.AddError(
+		"Update not supported for script attachments",
+		"Script attachments are immutable. To change the filename or content, delete and recreate the attachment.",
+	)
 }
 
 func (r *ScriptAttachmentResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
-	var state ScriptAttachmentResourceModel
+	var state scriptAttachmentResourceModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -189,65 +229,5 @@ func (r *ScriptAttachmentResource) Delete(ctx context.Context, req resource.Dele
 }
 
 func (r *ScriptAttachmentResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
-	// Expect import ID in the form "<script_id>/<filename>"
-	parts := strings.SplitN(req.ID, "/", 2)
-	if len(parts) != 2 {
-		resp.Diagnostics.AddError("Invalid import ID", "Expected import identifier in the form <script_id>/<filename>.")
-		return
-	}
-
-	scriptID, err := strconv.ParseInt(parts[0], 10, 64)
-	if err != nil {
-		resp.Diagnostics.AddError("Invalid script_id", fmt.Sprintf("Could not parse script_id from import ID: %v", err))
-		return
-	}
-
-	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("script_id"), scriptID)...)
-	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("filename"), parts[1])...)
-}
-
-func (r *ScriptAttachmentResource) readAttachment(ctx context.Context, scriptID int64, filename string, content types.String) (*ScriptAttachmentResourceModel, diag.Diagnostics) {
-	var diags diag.Diagnostics
-
-	scriptRes, err := r.client.GetScriptWithResponse(ctx, landscape.ScriptIdPathParam(scriptID))
-	if err != nil {
-		diags.AddError("Failed to read script", err.Error())
-		return nil, diags
-	}
-
-	if scriptRes.JSON200 == nil {
-		diags.AddError("Failed to read script", fmt.Sprintf("Error getting script: %s", scriptRes.Status()))
-		return nil, diags
-	}
-
-	v2, err := scriptRes.JSON200.AsV2Script()
-	if err != nil {
-		diags.AddError("Unsupported script type", "Script attachments are only available for V2 scripts.")
-		return nil, diags
-	}
-
-	var attachment *landscape.ScriptAttachment
-	if v2.Attachments != nil {
-		for _, a := range *v2.Attachments {
-			if a.Filename == filename {
-				aCopy := a
-				attachment = &aCopy
-				break
-			}
-		}
-	}
-
-	if attachment == nil {
-		diags.AddError("Attachment not found", fmt.Sprintf("No attachment named %q exists on script %d", filename, scriptID))
-		return nil, diags
-	}
-
-	state := ScriptAttachmentResourceModel{
-		Id:       types.Int64Value(int64(attachment.Id)),
-		ScriptId: types.Int64Value(scriptID),
-		Filename: types.StringValue(filename),
-		Content:  content, // not returned by API; preserve prior value
-	}
-
-	return &state, diags
+	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
 }

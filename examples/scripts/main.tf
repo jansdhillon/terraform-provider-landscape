@@ -6,12 +6,10 @@ terraform {
   }
 }
 
-provider "landscape" {
-  base_url = "https://landscape.canonical.com"
-}
+provider "landscape" {}
 
 resource "landscape_script" "v1" {
-  title        = "dead script walking"
+  title        = "dead script walking3"
   code         = file("v1.sh")
   username     = "jan"
   time_limit   = 500
@@ -19,7 +17,7 @@ resource "landscape_script" "v1" {
 }
 
 resource "landscape_script" "active" {
-  title        = "IS THAT HIM WITH THE SOMBREREO ON"
+  title        = "IS THAT HIM WITH THE SOMBREREO ON2"
   code         = file("v2.sh")
   username     = "jan"
   time_limit   = 500
@@ -27,28 +25,34 @@ resource "landscape_script" "active" {
   status       = "ACTIVE"
 }
 
-resource "landscape_script_attachment" "att" {
+resource "landscape_script_attachment" "my_attachment" {
   script_id = landscape_script.active.id
+  filename  = "hello3.txt"
+  content   = <<-EOT
+  my attachment
+  EOT
+}
+
+resource "landscape_script_attachment" "my_attachment2" {
+  script_id = landscape_script.v1.id
   filename  = "hello.txt"
   content   = <<-EOT
-  my att
+  my attachment
   EOT
-
-  depends_on = [landscape_script.active]
 }
 
 
-
-data "landscape_script" "v1" {
-  id = 21665
-
-  depends_on = [landscape_script.v1]
+data "landscape_script" "data_v1" {
+  id = landscape_script.v1.id
 }
 
-data "landscape_script" "active" {
-  id = 21671
+data "landscape_script" "data_v2" {
+  id = landscape_script.active.id
+}
 
-  depends_on = [landscape_script.active]
+data "landscape_script_attachment" "data_attachment" {
+  id        = landscape_script_attachment.my_attachment
+  script_id = data.landscape_script.data_v2
 }
 
 
@@ -63,16 +67,16 @@ output "v2_script" {
 }
 
 output "data_v1" {
-  value     = data.landscape_script.v1
+  value     = data.landscape_script.data_v1
   sensitive = true
 }
 
 output "data_v2" {
-  value     = data.landscape_script.active
+  value     = data.landscape_script.data_v2
   sensitive = true
 }
 
 output "att" {
-  value     = landscape_script_attachment.att
+  value     = landscape_script_attachment.my_attachment
   sensitive = true
 }

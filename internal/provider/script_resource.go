@@ -232,7 +232,7 @@ func (r *ScriptResource) Configure(ctx context.Context, req resource.ConfigureRe
 	if !ok {
 		resp.Diagnostics.AddError(
 			"Unexpected Resource Configure Type",
-			fmt.Sprintf("Expected *http.Client, got: %T. Please report this issue to the provider developers.", req.ProviderData),
+			fmt.Sprintf("Expected *landscape.ClientWithResponses, got: %T. Please report this issue to the provider developers.", req.ProviderData),
 		)
 
 		return
@@ -269,18 +269,6 @@ func (r *ScriptResource) Create(ctx context.Context, req resource.CreateRequest,
 		return
 	}
 
-	statusValue := "V1"
-	if !statusAttr.IsNull() && !statusAttr.IsUnknown() {
-		statusValue = strings.ToUpper(statusAttr.ValueString())
-	}
-
-	validStatuses := map[string]bool{"V1": true, "ACTIVE": true, "ARCHIVED": true, "REDACTED": true}
-	if !validStatuses[statusValue] {
-		resp.Diagnostics.AddError("Invalid script status", "`status` must be V1 (legacy) or one of ACTIVE/ARCHIVED/REDACTED for V2.")
-		return
-	}
-
-	statusAttr = types.StringValue(statusValue)
 	opts := newScriptCreateOpts(title, codeAttr, username, timeLimit, statusAttr, accessGroup)
 
 	switch opts.ScriptType {
@@ -327,13 +315,18 @@ func (r *ScriptResource) createV2(ctx context.Context, resp *resource.CreateResp
 		return
 	}
 
-	v2, err := createRes.JSON200.AsV2Script()
+	scriptRes, err := createRes.JSON200.AsScriptResult()
 	if err != nil {
-		resp.Diagnostics.AddError("Failed to decode V2 script", err.Error())
+		resp.Diagnostics.AddError("Failed to decode response as script", err.Error())
 		return
 	}
 
-	state, diags := v2ScriptToState(ctx, v2)
+	v2Script, err := scriptRes.AsV2Script()
+	if err != nil {
+		resp.Diagnostics.AddError("Failed to convert script response into V2 script", err.Error())
+	}
+
+	state, diags := v2ScriptToState(ctx, v2Script)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -364,24 +357,30 @@ func (r *ScriptResource) createV1(ctx context.Context, resp *resource.CreateResp
 	editor := landscape.EncodeQueryRequestEditor(vals)
 	cre, err := r.client.InvokeLegacyActionWithResponse(ctx, params, editor)
 	if err != nil {
-		resp.Diagnostics.AddError("create failed", err.Error())
+		resp.Diagnostics.AddError("Creating V1 script failed", err.Error())
 		return
 	}
 	if cre.JSON200 == nil {
-		resp.Diagnostics.AddError("create failed", *cre.JSON400.Message)
+		resp.Diagnostics.AddError("Creating V1 script failed", *cre.JSON400.Message)
 		return
 	}
 
-	v1, err := cre.JSON200.AsV1Script()
+	scriptRes, err := cre.JSON200.AsScriptResult()
 	if err != nil {
-		resp.Diagnostics.AddError("invalid V1", err.Error())
+		resp.Diagnostics.AddError("Failed to parse response as script", err.Error())
+		return
+	}
+
+	v1Script, err := scriptRes.AsV1Script()
+	if err != nil {
+		resp.Diagnostics.AddError("Failed to read script as V1 script", err.Error())
 		return
 	}
 
 	codeRes, err := r.client.InvokeLegacyActionWithResponse(
 		ctx,
 		landscape.LegacyActionParams("GetScriptCode"),
-		landscape.EncodeQueryRequestEditor(url.Values{"script_id": []string{strconv.Itoa(v1.Id)}}),
+		landscape.EncodeQueryRequestEditor(url.Values{"script_id": []string{strconv.Itoa(v1Script.Id)}}),
 	)
 	if err != nil {
 		resp.Diagnostics.AddError("code fetch failed", err.Error())
@@ -394,7 +393,7 @@ func (r *ScriptResource) createV1(ctx context.Context, resp *resource.CreateResp
 		return
 	}
 
-	state, diags := v1ScriptWithCodeToState(ctx, v1, rawCode)
+	state, diags := v1ScriptWithCodeToState(ctx, v1Script, rawCode)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -495,15 +494,40 @@ func (r *ScriptResource) updateScript(ctx context.Context, plan, state ScriptRes
 	}
 
 	editor := landscape.EncodeQueryRequestEditor(vals)
-	_, err := r.client.InvokeLegacyAction(ctx, landscape.LegacyActionParams("EditScript"), editor)
+	res, err := r.client.InvokeLegacyActionWithResponse(ctx, landscape.LegacyActionParams("EditScript"), editor)
 	if err != nil {
-		resp.Diagnostics.AddError("update failed", err.Error())
+		resp.Diagnostics.AddError("Update failed", err.Error())
 		return nil, resp.Diagnostics
 	}
 
-	newState, diags := r.readScript(ctx, state.Id.ValueInt64())
+	if res.JSON200 == nil {
+		resp.Diagnostics.AddError("Update failed", res.Status())
+	}
 
-	return newState, diags
+	scriptRes, err := res.JSON200.AsScriptResult()
+	if err != nil {
+		resp.Diagnostics.AddError("Failed to read script", fmt.Sprintf("Error getting script: %s", err))
+		return nil, resp.Diagnostics
+	}
+
+	if v1, err := scriptRes.AsV1Script(); err == nil {
+		state, stateDiags := v1ScriptToState(ctx, r.client, v1)
+		resp.Diagnostics.Append(stateDiags...)
+		tflog.Debug(ctx, "read script as V1")
+		return &state, resp.Diagnostics
+	}
+
+	v2, err := scriptRes.AsV2Script()
+	if err != nil {
+		state, stateDiags := v2ScriptToState(ctx, v2)
+		resp.Diagnostics.Append(stateDiags...)
+		tflog.Debug(ctx, "read script as V2")
+		return &state, resp.Diagnostics
+	}
+
+	resp.Diagnostics.AddError("Failed to convert script", "Could not convert returned script into a V1 or V2 script")
+	return nil, resp.Diagnostics
+
 }
 
 func (r *ScriptResource) readScript(ctx context.Context, id int64) (*ScriptResourceModel, diag.Diagnostics) {
@@ -520,13 +544,7 @@ func (r *ScriptResource) readScript(ctx context.Context, id int64) (*ScriptResou
 		return nil, diags
 	}
 
-	if _, err := scriptRes.JSON200.Discriminator(); err != nil {
-		diags.AddError("Failed to read script", fmt.Sprintf("Error getting script: %s", err))
-		return nil, diags
-	}
-
 	scriptStatus, err := scriptRes.JSON200.Discriminator()
-
 	if err != nil {
 		diags.AddError("Failed to read script", fmt.Sprintf("Error getting script: %s", err))
 		return nil, diags
@@ -536,20 +554,20 @@ func (r *ScriptResource) readScript(ctx context.Context, id int64) (*ScriptResou
 		if v1, err := scriptRes.JSON200.AsV1Script(); err == nil {
 			state, stateDiags := v1ScriptToState(ctx, r.client, v1)
 			diags.Append(stateDiags...)
-			tflog.Info(ctx, "read script as V1")
+			tflog.Debug(ctx, "read script as V1")
 			return &state, diags
 		}
-		tflog.Warn(ctx, "Failed to convert script marked V1; attempting V2 parse instead")
+		tflog.Warn(ctx, "Failed to convert script marked V1, attempting to parse as V2 instead")
 	}
 
 	if v2, err := scriptRes.JSON200.AsV2Script(); err == nil {
 		state, stateDiags := v2ScriptToState(ctx, v2)
 		diags.Append(stateDiags...)
-		tflog.Info(ctx, "read script as V2")
+		tflog.Debug(ctx, "read script as V2")
 		return &state, diags
 	}
 
-	diags.AddError("Failed to convert script", fmt.Sprintf("Could not convert returned script into V1 or V2 form (status=%q)", scriptStatus))
+	diags.AddError("Failed to convert script", fmt.Sprintf("Could not convert returned script into V1 or V2: %s", scriptStatus))
 	return nil, diags
 }
 
@@ -573,13 +591,13 @@ func fetchV1Code(ctx context.Context, client *landscape.ClientWithResponses, id 
 		} else {
 			errMsg = fmt.Sprintf("%s: %s", errMsg, codeRes.Status())
 		}
-		diags.AddError("code fetch failed", errMsg)
+		diags.AddError("Getting script code failed", errMsg)
 		return "", diags
 	}
 
 	raw, err := codeRes.JSON200.AsLegacyScriptCode()
 	if err != nil {
-		diags.AddError("decode failed", err.Error())
+		diags.AddError("Decoding legacy script code failed", err.Error())
 		return "", diags
 	}
 
@@ -598,7 +616,7 @@ func v1ScriptToState(ctx context.Context, client *landscape.ClientWithResponses,
 	return v1ScriptWithCodeToState(ctx, v1, raw)
 }
 
-func v1ScriptWithCodeToState(ctx context.Context, v1 landscape.V1Script, rawCode string) (ScriptResourceModel, diag.Diagnostics) {
+func v1ScriptWithCodeToState(_ context.Context, v1 landscape.V1Script, rawCode string) (ScriptResourceModel, diag.Diagnostics) {
 	var diags diag.Diagnostics
 
 	ag := types.StringNull()
@@ -658,8 +676,6 @@ func v1ScriptWithCodeToState(ctx context.Context, v1 landscape.V1Script, rawCode
 		}
 	}
 
-	tflog.Info(ctx, fmt.Sprintf("mreged code: %s", rawCode))
-
 	return ScriptResourceModel{
 		Id:             types.Int64Value(int64(v1.Id)),
 		Title:          types.StringValue(v1.Title),
@@ -695,7 +711,7 @@ func v2ScriptToState(ctx context.Context, v2Script landscape.V2Script) (ScriptRe
 		if !diags.HasError() {
 			createdBy = obj
 		} else {
-			tflog.Info(ctx, "Couldn't convert script created_by field into an object")
+			tflog.Debug(ctx, "Couldn't convert script created_by field into an object")
 		}
 	}
 
@@ -763,8 +779,6 @@ func v2ScriptToState(ctx context.Context, v2Script landscape.V2Script) (ScriptRe
 	if v2Script.Interpreter != nil && v2Script.Code != nil {
 		mergedCode = types.StringValue(fmt.Sprintf("#!%s\n%s", *v2Script.Interpreter, *v2Script.Code))
 	}
-
-	tflog.Info(ctx, fmt.Sprintf("mreged code: %s", mergedCode.ValueString()))
 
 	versionNumber := types.Int64Null()
 	if v2Script.VersionNumber != nil {
