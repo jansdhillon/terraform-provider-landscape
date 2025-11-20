@@ -7,7 +7,7 @@ require (
 	github.com/hashicorp/terraform-plugin-go v0.29.0
 	github.com/hashicorp/terraform-plugin-log v0.10.0
 	github.com/hashicorp/terraform-plugin-testing v1.13.3
-	github.com/jansdhillon/landscape-go-api-client v0.0.5
+	github.com/jansdhillon/landscape-go-api-client v0.0.6
 )
 
 require (
