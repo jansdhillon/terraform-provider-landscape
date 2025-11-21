@@ -15,7 +15,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	resourceschema "github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/types"
-	"github.com/hashicorp/terraform-plugin-log/tflog"
 	landscape "github.com/jansdhillon/landscape-go-api-client/client"
 )
 
@@ -171,6 +170,7 @@ func (r *ScriptV2Resource) Configure(ctx context.Context, req resource.Configure
 }
 
 func (r *ScriptV2Resource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
+	var id types.Int64
 	var title types.String
 	var codeAttr types.String
 	var username types.String
@@ -182,17 +182,8 @@ func (r *ScriptV2Resource) Create(ctx context.Context, req resource.CreateReques
 	resp.Diagnostics.Append(req.Plan.GetAttribute(ctx, path.Root("username"), &username)...)
 	resp.Diagnostics.Append(req.Plan.GetAttribute(ctx, path.Root("time_limit"), &timeLimit)...)
 	resp.Diagnostics.Append(req.Plan.GetAttribute(ctx, path.Root("access_group"), &accessGroup)...)
+	resp.Diagnostics.Append(req.Plan.GetAttribute(ctx, path.Root("id"), &id)...)
 	if resp.Diagnostics.HasError() {
-		return
-	}
-
-	if title.IsNull() || title.IsUnknown() {
-		resp.Diagnostics.AddError("Missing title", "`title` must be set.")
-		return
-	}
-
-	if codeAttr.IsNull() || codeAttr.IsUnknown() {
-		resp.Diagnostics.AddError("Missing code", "`code` must be set.")
 		return
 	}
 
@@ -220,28 +211,35 @@ func (r *ScriptV2Resource) Create(ctx context.Context, req resource.CreateReques
 
 	if createRes.JSON200 == nil {
 		errMsg := "Unexpected error creating script"
-		if createRes.JSON400 != nil && createRes.JSON400.Message != nil {
-			errMsg = fmt.Sprintf("%s: %s", errMsg, *createRes.JSON400.Message)
-		} else if len(createRes.Body) > 0 {
-			errMsg = fmt.Sprintf("%s: %s", errMsg, string(createRes.Body))
+		if createRes.JSON400 != nil {
+			errMsg = *createRes.JSON400.Message
+		} else if createRes.JSON401 != nil {
+			errMsg = *createRes.JSON401.Message
+		} else if createRes.JSON404 != nil {
+			errMsg = *createRes.JSON404.Message
 		}
+
 		resp.Diagnostics.AddError("Failed to create script", errMsg)
 		return
 	}
 
-	scriptRes, err := createRes.JSON200.AsScriptResult()
+	getRes, err := r.client.GetScriptWithResponse(ctx, int(id.ValueInt64()))
 	if err != nil {
-		resp.Diagnostics.AddError("Failed to decode response as script", err.Error())
+		resp.Diagnostics.AddError("Failed to read script after create", err.Error())
+		return
+	}
+	if getRes.JSON200 == nil {
+		resp.Diagnostics.AddError("Failed to read script after create", fmt.Sprintf("Error getting script: %s", getRes.Status()))
 		return
 	}
 
-	v2Script, err := scriptRes.AsV2Script()
+	script, err := getRes.JSON200.AsV2Script()
 	if err != nil {
-		resp.Diagnostics.AddError("Failed to convert script response into V2 script", err.Error())
+		resp.Diagnostics.AddError("Failed to convert script after create", "The script is not a V2 script.")
 		return
 	}
 
-	state, diags := v2ScriptToResourceState(ctx, v2Script)
+	state, diags := v2ScriptToResourceState(ctx, script)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -258,12 +256,7 @@ func (r *ScriptV2Resource) Read(ctx context.Context, req resource.ReadRequest, r
 		return
 	}
 
-	if current.Id.IsNull() || current.Id.IsUnknown() {
-		resp.Diagnostics.AddError("Missing script ID", "The `id` attribute must be set in state to read a script.")
-		return
-	}
-
-	scriptRes, err := r.client.GetScriptWithResponse(ctx, landscape.ScriptIdPathParam(current.Id.ValueInt64()))
+	scriptRes, err := r.client.GetScriptWithResponse(ctx, int(current.Id.ValueInt64()))
 	if err != nil {
 		resp.Diagnostics.AddError("Failed to read script", err.Error())
 		return
@@ -319,35 +312,56 @@ func (r *ScriptV2Resource) Update(ctx context.Context, req resource.UpdateReques
 
 	editor := landscape.EncodeQueryRequestEditor(vals)
 	res, err := r.client.InvokeLegacyActionWithResponse(ctx, landscape.LegacyActionParams("EditScript"), editor)
+	errTitle := "Updating v2 script failed"
 	if err != nil {
-		resp.Diagnostics.AddError("Update failed", err.Error())
+		resp.Diagnostics.AddError(errTitle, err.Error())
 		return
 	}
 
 	if res.JSON200 == nil {
-		resp.Diagnostics.AddError("Update failed", res.Status())
+		if res.JSON400 != nil {
+			resp.Diagnostics.AddError(errTitle, *res.JSON400.Message)
+			return
+		}
+
+		if res.JSON404 != nil {
+			resp.Diagnostics.AddError(errTitle, *res.JSON404.Message)
+			return
+		}
+
+		if res.JSON401 != nil {
+			resp.Diagnostics.AddError(errTitle, *res.JSON404.Message)
+			return
+		}
+
+		resp.Diagnostics.AddError(errTitle, res.Status())
 		return
+
 	}
 
-	scriptRes, err := res.JSON200.AsScriptResult()
+	getRes, err := r.client.GetScriptWithResponse(ctx, int(state.Id.ValueInt64()))
 	if err != nil {
-		resp.Diagnostics.AddError("Failed to read script", fmt.Sprintf("Error getting script: %s", err))
+		resp.Diagnostics.AddError("Failed to read script after create", err.Error())
+		return
+	}
+	if getRes.JSON200 == nil {
+		resp.Diagnostics.AddError("Failed to read script after create", fmt.Sprintf("Error getting script: %s", getRes.Status()))
 		return
 	}
 
-	v2, err := scriptRes.AsV2Script()
+	script, err := getRes.JSON200.AsV2Script()
 	if err != nil {
-		resp.Diagnostics.AddError("Failed to convert script", "The script is not a V2 script.")
+		resp.Diagnostics.AddError("Failed to convert script after create", "The script is not a V2 script.")
 		return
 	}
 
-	newState, stateDiags := v2ScriptToResourceState(ctx, v2)
-	resp.Diagnostics.Append(stateDiags...)
+	state, diags := v2ScriptToResourceState(ctx, script)
+	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	resp.Diagnostics.Append(resp.State.Set(ctx, newState)...)
+	resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
 }
 
 // Delete archives a V2 script (they can't be deleted).
@@ -358,7 +372,7 @@ func (r *ScriptV2Resource) Delete(ctx context.Context, req resource.DeleteReques
 		return
 	}
 
-	_, err := r.client.ArchiveScript(ctx, landscape.ScriptIdPathParam(state.Id.ValueInt64()))
+	_, err := r.client.ArchiveScript(ctx, int(state.Id.ValueInt64()))
 	if err != nil {
 		resp.Diagnostics.AddError("Failed to archive script", err.Error())
 	}
@@ -386,7 +400,6 @@ func v2ScriptToResourceState(ctx context.Context, v2Script landscape.V2Script) (
 		if !diags.HasError() {
 			createdBy = obj
 		} else {
-			tflog.Debug(ctx, "Couldn't convert script created_by field into an object")
 		}
 	}
 

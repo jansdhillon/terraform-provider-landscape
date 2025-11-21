@@ -15,7 +15,7 @@ resource "landscape_script_v1" "v1" {
 }
 
 resource "landscape_script_v2" "active" {
-  title        = "my v2 script"
+  title        = uuid()
   code         = file("v2.sh")
   username     = "jan"
   time_limit   = 500

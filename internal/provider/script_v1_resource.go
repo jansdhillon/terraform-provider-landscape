@@ -136,16 +136,6 @@ func (r *ScriptV1Resource) Create(ctx context.Context, req resource.CreateReques
 		return
 	}
 
-	if title.IsNull() || title.IsUnknown() {
-		resp.Diagnostics.AddError("Missing title", "`title` must be set.")
-		return
-	}
-
-	if codeAttr.IsNull() || codeAttr.IsUnknown() {
-		resp.Diagnostics.AddError("Missing code", "`code` must be set.")
-		return
-	}
-
 	params := landscape.LegacyActionParams("CreateScript")
 	vals := url.Values{
 		"title":       []string{title.ValueString()},
@@ -164,17 +154,24 @@ func (r *ScriptV1Resource) Create(ctx context.Context, req resource.CreateReques
 	}
 
 	editor := landscape.EncodeQueryRequestEditor(vals)
-	cre, err := r.client.InvokeLegacyActionWithResponse(ctx, params, editor)
+	res, err := r.client.InvokeLegacyActionWithResponse(ctx, params, editor)
+	errTitle := "Failed to create V1 script"
 	if err != nil {
-		resp.Diagnostics.AddError("Creating V1 script failed", err.Error())
-		return
-	}
-	if cre.JSON200 == nil {
-		resp.Diagnostics.AddError("Creating V1 script failed", *cre.JSON400.Message)
+		resp.Diagnostics.AddError(errTitle, err.Error())
 		return
 	}
 
-	scriptRes, err := cre.JSON200.AsScriptResult()
+	if res.JSON404 != nil {
+		resp.Diagnostics.AddError(errTitle, *res.JSON404.Message)
+		return
+	}
+
+	if res.JSON200 == nil {
+		resp.Diagnostics.AddError(errTitle, *res.JSON400.Message)
+		return
+	}
+
+	scriptRes, err := res.JSON200.AsScriptResult()
 	if err != nil {
 		resp.Diagnostics.AddError("Failed to parse response as script", err.Error())
 		return
@@ -192,13 +189,13 @@ func (r *ScriptV1Resource) Create(ctx context.Context, req resource.CreateReques
 		landscape.EncodeQueryRequestEditor(url.Values{"script_id": []string{strconv.Itoa(v1Script.Id)}}),
 	)
 	if err != nil {
-		resp.Diagnostics.AddError("code fetch failed", err.Error())
+		resp.Diagnostics.AddError("Failed to get script code", err.Error())
 		return
 	}
 
 	rawCode, err := codeRes.JSON200.AsLegacyScriptCode()
 	if err != nil {
-		resp.Diagnostics.AddError("decode failed", err.Error())
+		resp.Diagnostics.AddError("Failed to decode script code", err.Error())
 		return
 	}
 
@@ -219,18 +216,24 @@ func (r *ScriptV1Resource) Read(ctx context.Context, req resource.ReadRequest, r
 		return
 	}
 
-	scriptRes, err := r.client.GetScriptWithResponse(ctx, landscape.ScriptIdPathParam(current.Id.ValueInt64()))
+	res, err := r.client.GetScriptWithResponse(ctx, landscape.ScriptIdPathParam(current.Id.ValueInt64()))
+	errTitle := "Failed to read script"
 	if err != nil {
-		resp.Diagnostics.AddError("Failed to read script", err.Error())
+		resp.Diagnostics.AddError(errTitle, err.Error())
 		return
 	}
 
-	if scriptRes.JSON200 == nil {
-		resp.Diagnostics.AddError("Failed to read script", fmt.Sprintf("Error getting script: %s", scriptRes.Status()))
+	if res.JSON404 != nil {
+		resp.Diagnostics.AddError(errTitle, *res.JSON404.Message)
 		return
 	}
 
-	v1Script, err := scriptRes.JSON200.AsV1Script()
+	if res.JSON200 == nil {
+		resp.Diagnostics.AddError(errTitle, fmt.Sprintf("Error getting script: %s", res.Status()))
+		return
+	}
+
+	v1Script, err := res.JSON200.AsV1Script()
 	if err != nil {
 		resp.Diagnostics.AddError("Failed to convert script", "The script is not a V1 script.")
 		return
@@ -281,13 +284,19 @@ func (r *ScriptV1Resource) Update(ctx context.Context, req resource.UpdateReques
 
 	editor := landscape.EncodeQueryRequestEditor(vals)
 	res, err := r.client.InvokeLegacyActionWithResponse(ctx, landscape.LegacyActionParams("EditScript"), editor)
+	errTitle := "Update failed"
 	if err != nil {
-		resp.Diagnostics.AddError("Update failed", err.Error())
+		resp.Diagnostics.AddError(errTitle, err.Error())
+		return
+	}
+
+	if res.JSON404 != nil {
+		resp.Diagnostics.AddError(errTitle, *res.JSON404.Message)
 		return
 	}
 
 	if res.JSON200 == nil {
-		resp.Diagnostics.AddError("Update failed", res.Status())
+		resp.Diagnostics.AddError(errTitle, res.Status())
 		return
 	}
 

@@ -24,4 +24,4 @@ testacc:
 .PHONY: fmt lint test testacc build install generate mantest
 
 mantest:
-	go install . && cd examples/scripts && TF_LOG=DEBUG terraform apply -auto-approve || true && cd ../..
+	go install . && cd examples/scripts && TF_LOG=INFO terraform apply -auto-approve || true && cd ../..
