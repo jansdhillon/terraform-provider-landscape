@@ -134,7 +134,12 @@ func (d *ScriptV1DataSource) Read(ctx context.Context, req datasource.ReadReques
 	}
 
 	if scriptRes.JSON200 == nil {
-		resp.Diagnostics.AddError("Failed to get script", "An error occurred getting the script.")
+		if scriptRes.JSON404 != nil {
+			resp.Diagnostics.AddError("Failed to get script", *scriptRes.JSON404.Message)
+			return
+		}
+
+		resp.Diagnostics.AddError("Failed to get script", fmt.Sprintf("An error occurred getting the script: %s", scriptRes.Status()))
 		return
 	}
 

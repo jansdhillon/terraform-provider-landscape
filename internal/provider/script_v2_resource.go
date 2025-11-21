@@ -382,7 +382,7 @@ func (r *ScriptV2Resource) ImportState(ctx context.Context, req resource.ImportS
 	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
 }
 
-func v2ScriptToResourceState(ctx context.Context, v2Script landscape.V2Script) (ScriptV2ResourceModel, diag.Diagnostics) {
+func v2ScriptToResourceState(_ context.Context, v2Script landscape.V2Script) (ScriptV2ResourceModel, diag.Diagnostics) {
 	var diags diag.Diagnostics
 
 	v2CreatedByAttrTypes := map[string]attr.Type{

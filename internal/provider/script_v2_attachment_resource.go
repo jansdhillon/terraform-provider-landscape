@@ -14,7 +14,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	resourceschema "github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/types"
-	"github.com/hashicorp/terraform-plugin-log/tflog"
 	landscape "github.com/jansdhillon/landscape-go-api-client/client"
 )
 
@@ -160,40 +159,25 @@ func (r *ScriptV2AttachmentResource) readAttachment(ctx context.Context, scriptI
 		return nil, diags
 	}
 
-	if attachmentContent.StatusCode() == 404 {
-		if attachmentContent.JSON404 != nil {
-			diags.AddError("Attachment not found", *attachmentContent.JSON404.Message)
-		} else {
-			diags.AddError("Attachment not found", "404 Not Found")
-		}
+	if attachmentContent.JSON404 != nil {
+		diags.AddError("Attachment not found", *attachmentContent.JSON404.Message)
 		return nil, diags
 	}
 
-	tflog.Debug(ctx, fmt.Sprintf("raw: %s", attachmentContent.Body))
-
-	if attachmentContent.JSON200 == nil {
-		bodyStr := string(attachmentContent.Body)
-		if attachmentContent.StatusCode() == 200 && bodyStr != "" {
-			state := scriptV2AttachmentResourceModel{
-				Id:       types.Int64Value(attachmentID),
-				ScriptId: types.Int64Value(scriptID),
-				Filename: types.StringValue(filename),
-				Content:  types.StringValue(bodyStr),
-			}
-			return &state, diags
+	bodyStr := string(attachmentContent.Body)
+	if attachmentContent.StatusCode() == 200 && bodyStr != "" {
+		state := scriptV2AttachmentResourceModel{
+			Id:       types.Int64Value(attachmentID),
+			ScriptId: types.Int64Value(scriptID),
+			Filename: types.StringValue(filename),
+			Content:  types.StringValue(bodyStr),
 		}
-
-		diags.AddError("Error reading attachment", fmt.Sprintf("%s\n%s", attachmentContent.Status(), string(attachmentContent.Body)))
-		return nil, diags
+		return &state, diags
 	}
 
-	state := scriptV2AttachmentResourceModel{
-		Id:       types.Int64Value(attachmentID),
-		ScriptId: types.Int64Value(scriptID),
-		Filename: types.StringValue(filename),
-		Content:  types.StringValue(*attachmentContent.JSON200),
-	}
-	return &state, diags
+	diags.AddError("Error reading attachment", fmt.Sprintf("%s\n%s", attachmentContent.Status(), string(attachmentContent.Body)))
+	return nil, diags
+
 }
 
 func (r *ScriptV2AttachmentResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {

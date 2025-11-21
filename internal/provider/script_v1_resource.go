@@ -188,14 +188,25 @@ func (r *ScriptV1Resource) Create(ctx context.Context, req resource.CreateReques
 		landscape.LegacyActionParams("GetScriptCode"),
 		landscape.EncodeQueryRequestEditor(url.Values{"script_id": []string{strconv.Itoa(v1Script.Id)}}),
 	)
+	errTitle = "Failed to get script code"
 	if err != nil {
-		resp.Diagnostics.AddError("Failed to get script code", err.Error())
+		resp.Diagnostics.AddError(errTitle, err.Error())
+		return
+	}
+
+	if res.JSON200 == nil {
+		if res.JSON404 != nil {
+			resp.Diagnostics.AddError(errTitle, *res.JSON404.Message)
+			return
+		}
+
+		resp.Diagnostics.AddError(errTitle, fmt.Sprintf("An error occurred getting the script code: %s", res.Status()))
 		return
 	}
 
 	rawCode, err := codeRes.JSON200.AsLegacyScriptCode()
 	if err != nil {
-		resp.Diagnostics.AddError("Failed to decode script code", err.Error())
+		resp.Diagnostics.AddError(errTitle, fmt.Sprintf("An error occurred getting the script code: %s", err))
 		return
 	}
 
@@ -235,7 +246,7 @@ func (r *ScriptV1Resource) Read(ctx context.Context, req resource.ReadRequest, r
 
 	v1Script, err := res.JSON200.AsV1Script()
 	if err != nil {
-		resp.Diagnostics.AddError("Failed to convert script", "The script is not a V1 script.")
+		resp.Diagnostics.AddError(errTitle, fmt.Sprintf("Error getting script: %s", err))
 		return
 	}
 
@@ -295,6 +306,11 @@ func (r *ScriptV1Resource) Update(ctx context.Context, req resource.UpdateReques
 		return
 	}
 
+	if res.JSON400 != nil {
+		resp.Diagnostics.AddError(errTitle, *res.JSON400.Message)
+		return
+	}
+
 	if res.JSON200 == nil {
 		resp.Diagnostics.AddError(errTitle, res.Status())
 		return
@@ -308,7 +324,7 @@ func (r *ScriptV1Resource) Update(ctx context.Context, req resource.UpdateReques
 
 	v1, err := scriptRes.AsV1Script()
 	if err != nil {
-		resp.Diagnostics.AddError("Failed to convert script", "The script is not a V1 script.")
+		resp.Diagnostics.AddError("Failed to convert script", fmt.Sprintf("Error getting script: %s", err))
 		return
 	}
 
@@ -349,7 +365,35 @@ func (r *ScriptV1Resource) Delete(ctx context.Context, req resource.DeleteReques
 }
 
 func (r *ScriptV1Resource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
-	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
+	if req.ID == "" {
+		resp.Diagnostics.AddError("Invalid import ID", "No import ID was provided.")
+		return
+	}
+
+	parsed, err := strconv.ParseInt(req.ID, 10, 64)
+	if err != nil {
+		resp.Diagnostics.AddError("Invalid import ID", fmt.Sprintf("Import ID '%s' is not a valid integer: %s", req.ID, err))
+		return
+	}
+
+	v1AttachmentAttrType := map[string]attr.Type{
+		"filename": types.StringType,
+	}
+
+	stateModel := ScriptV1ResourceModel{
+		Id:          types.Int64Value(parsed),
+		Title:       types.StringNull(),
+		AccessGroup: types.StringNull(),
+		Code:        types.StringNull(),
+		CreatedBy:   types.ObjectNull(createdByAttrTypes),
+		Status:      types.StringNull(),
+		Username:    types.StringNull(),
+		TimeLimit:   types.Int64Null(),
+		Attachments: types.ListNull(types.ObjectType{AttrTypes: v1AttachmentAttrType}),
+	}
+
+	diags := resp.State.Set(ctx, stateModel)
+	resp.Diagnostics.Append(diags...)
 }
 
 func v1ScriptToResourceState(_ context.Context, v1 landscape.V1Script, rawCode string) (ScriptV1ResourceModel, diag.Diagnostics) {
