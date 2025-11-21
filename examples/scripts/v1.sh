@@ -1,5 +1,2 @@
 #!/bin/bash
-echo "everybody dance now!"
-dance
-echo "done dancing"
-exit 0
+echo "buy for a dollar, sell for tew."

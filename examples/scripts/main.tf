@@ -8,75 +8,63 @@ terraform {
 
 provider "landscape" {}
 
-resource "landscape_script" "v1" {
-  title        = "dead script walking3"
-  code         = file("v1.sh")
-  username     = "jan"
-  time_limit   = 500
-  access_group = "global"
+resource "landscape_script_v1" "v1" {
+  title    = "buy for a dollar"
+  code     = file("v1.sh")
+  username = "ubuntu"
 }
 
-resource "landscape_script" "active" {
-  title        = "IS THAT HIM WITH THE SOMBREREO ON2"
+resource "landscape_script_v2" "active" {
+  title        = "my v2 script"
   code         = file("v2.sh")
   username     = "jan"
   time_limit   = 500
   access_group = "global"
-  status       = "ACTIVE"
 }
 
-resource "landscape_script_attachment" "my_attachment" {
-  script_id = landscape_script.active.id
-  filename  = "hello3.txt"
+resource "landscape_script_v2_attachment" "my_attachment" {
+  script_id = landscape_script_v2.active.id
+  filename  = "attachment.txt"
   content   = <<-EOT
-  my attachment
+  my attachment for a v2 script
   EOT
+
+  depends_on = [landscape_script_v2.active]
 }
 
-resource "landscape_script_attachment" "my_attachment2" {
-  script_id = landscape_script.v1.id
-  filename  = "hello.txt"
-  content   = <<-EOT
-  my attachment
-  EOT
+data "landscape_script_v1" "data_v1" {
+  id = landscape_script_v1.v1.id
 }
 
-
-data "landscape_script" "data_v1" {
-  id = landscape_script.v1.id
+data "landscape_script_v2" "data_v2" {
+  id = landscape_script_v2.active.id
 }
 
-data "landscape_script" "data_v2" {
-  id = landscape_script.active.id
+data "landscape_script_v2_attachment" "data_attachment" {
+  id        = landscape_script_v2_attachment.my_attachment.id
+  script_id = data.landscape_script_v2.data_v2.id
 }
-
-data "landscape_script_attachment" "data_attachment" {
-  id        = landscape_script_attachment.my_attachment
-  script_id = data.landscape_script.data_v2
-}
-
 
 output "v1_script" {
-  value     = landscape_script.v1
-  sensitive = true
+  value = landscape_script_v1.v1
 }
 
 output "v2_script" {
-  value     = landscape_script.active
-  sensitive = true
+  value = landscape_script_v2.active
 }
 
 output "data_v1" {
-  value     = data.landscape_script.data_v1
-  sensitive = true
+  value = data.landscape_script_v1.data_v1
 }
 
 output "data_v2" {
-  value     = data.landscape_script.data_v2
-  sensitive = true
+  value = data.landscape_script_v2.data_v2
 }
 
-output "att" {
-  value     = landscape_script_attachment.my_attachment
-  sensitive = true
+output "v2_attachment" {
+  value = landscape_script_v2_attachment.my_attachment
+}
+
+output "data_v2_attachment" {
+  value = data.landscape_script_v2_attachment.data_attachment
 }

@@ -258,15 +258,17 @@ func (p *landscapeProvider) Configure(ctx context.Context, req provider.Configur
 // DataSources defines the data sources implemented in the provider.
 func (p *landscapeProvider) DataSources(_ context.Context) []func() datasource.DataSource {
 	return []func() datasource.DataSource{
-		NewScriptAttachmentDataSource,
-		NewScriptDataSource,
+		NewScriptV1DataSource,
+		NewScriptV2DataSource,
+		NewScriptV2AttachmentDataSource,
 	}
 }
 
 // Resources defines the resources implemented in the provider.
 func (p *landscapeProvider) Resources(_ context.Context) []func() resource.Resource {
 	return []func() resource.Resource{
-		NewScriptAttachmentResource,
-		NewScriptResource,
+		NewScriptV1Resource,
+		NewScriptV2Resource,
+		NewScriptV2AttachmentResource,
 	}
 }

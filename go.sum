@@ -103,10 +103,6 @@ github.com/hashicorp/terraform-svchost v0.1.1 h1:EZZimZ1GxdqFRinZ1tpJwVxxt49xc/S
 github.com/hashicorp/terraform-svchost v0.1.1/go.mod h1:mNsjQfZyf/Jhz35v6/0LWcv26+X7JPS+buii2c9/ctc=
 github.com/hashicorp/yamux v0.1.2 h1:XtB8kyFOyHXYVFnwT5C3+Bdo8gArse7j2AQ0DA0Uey8=
 github.com/hashicorp/yamux v0.1.2/go.mod h1:C+zze2n6e/7wshOZep2A70/aQU6QBRWJO/G6FT1wIns=
-github.com/jansdhillon/landscape-go-api-client v0.0.5 h1:kc48i+vmVwao9z9mr3NaFIhUqNbdy1UQBA5oxsXPF9M=
-github.com/jansdhillon/landscape-go-api-client v0.0.5/go.mod h1:WAnOrjqWEBkkNI2c3UgXY2Cj2ZGT71UJ8rdCKMMiOpc=
-github.com/jansdhillon/landscape-go-api-client v0.0.6 h1:gswf421WQfRPiubwrI8nDkJB/8tbnUtP7eko5FEehHE=
-github.com/jansdhillon/landscape-go-api-client v0.0.6/go.mod h1:WAnOrjqWEBkkNI2c3UgXY2Cj2ZGT71UJ8rdCKMMiOpc=
 github.com/jansdhillon/landscape-go-api-client v0.0.7 h1:WawjSOp0oHwx4kGg404tVUwCzRuCgHHh5MdiyG9vfBU=
 github.com/jansdhillon/landscape-go-api-client v0.0.7/go.mod h1:WAnOrjqWEBkkNI2c3UgXY2Cj2ZGT71UJ8rdCKMMiOpc=
 github.com/jbenet/go-context v0.0.0-20150711004518-d14ea06fba99 h1:BQSFePA1RWJOlocH6Fxy8MmwDt+yVQYULKfN0RoTN8A=

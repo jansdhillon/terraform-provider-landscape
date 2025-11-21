@@ -1,2 +1,5 @@
 #!/bin/bash
-echo "it's like this and like that and like this and uh"
+echo "everybody dance now!"
+dance
+echo "done dancing"
+exit 0
