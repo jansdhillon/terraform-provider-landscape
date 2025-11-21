@@ -28,8 +28,6 @@ resource "landscape_script_v2_attachment" "my_attachment" {
   content   = <<-EOT
   my attachment for a v2 script
   EOT
-
-  depends_on = [landscape_script_v2.active]
 }
 
 data "landscape_script_v1" "data_v1" {

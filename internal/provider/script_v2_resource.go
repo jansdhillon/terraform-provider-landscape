@@ -203,33 +203,51 @@ func (r *ScriptV2Resource) Create(ctx context.Context, req resource.CreateReques
 		vals.Add("access_group", accessGroup.ValueString())
 	}
 
-	createRes, err := r.client.InvokeLegacyActionWithResponse(ctx, landscape.LegacyActionParams("CreateScript"), landscape.EncodeQueryRequestEditor(vals))
+	res, err := r.client.InvokeLegacyActionWithResponse(ctx, landscape.LegacyActionParams("CreateScript"), landscape.EncodeQueryRequestEditor(vals))
 	if err != nil {
 		resp.Diagnostics.AddError("Failed to create script", err.Error())
 		return
 	}
 
-	if createRes.JSON200 == nil {
+	if res.JSON200 == nil {
 		errMsg := "Unexpected error creating script"
-		if createRes.JSON400 != nil {
-			errMsg = *createRes.JSON400.Message
-		} else if createRes.JSON401 != nil {
-			errMsg = *createRes.JSON401.Message
-		} else if createRes.JSON404 != nil {
-			errMsg = *createRes.JSON404.Message
+		if res.JSON400 != nil {
+			errMsg = *res.JSON400.Message
+		} else if res.JSON401 != nil {
+			errMsg = *res.JSON401.Message
+		} else if res.JSON404 != nil {
+			errMsg = *res.JSON404.Message
 		}
 
 		resp.Diagnostics.AddError("Failed to create script", errMsg)
 		return
 	}
 
-	getRes, err := r.client.GetScriptWithResponse(ctx, int(id.ValueInt64()))
+	scriptRes, err := res.JSON200.AsScriptResult()
+	if err != nil {
+		resp.Diagnostics.AddError("Failed to parse response as script", err.Error())
+		return
+	}
+
+	v2Script, err := scriptRes.AsV2Script()
+	if err != nil {
+		resp.Diagnostics.AddError("Failed to read script as V2 script", err.Error())
+		return
+	}
+
+	getRes, err := r.client.GetScriptWithResponse(ctx, v2Script.Id)
 	if err != nil {
 		resp.Diagnostics.AddError("Failed to read script after create", err.Error())
 		return
 	}
 	if getRes.JSON200 == nil {
-		resp.Diagnostics.AddError("Failed to read script after create", fmt.Sprintf("Error getting script: %s", getRes.Status()))
+		errMsg := fmt.Sprintf("Error getting script: %s", getRes.Status())
+
+		if getRes.JSON404 != nil {
+			errMsg = *getRes.JSON404.Message
+		}
+
+		resp.Diagnostics.AddError("Failed to read script after create", errMsg)
 		return
 	}
 
@@ -399,7 +417,6 @@ func v2ScriptToResourceState(_ context.Context, v2Script landscape.V2Script) (Sc
 		diags.Append(d...)
 		if !diags.HasError() {
 			createdBy = obj
-		} else {
 		}
 	}
 
