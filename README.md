@@ -1,11 +1,11 @@
-# Terraform Provider Landscape
+# terraform-provider-landscape
 
-Terraform provider for [Landscape](https://ubuntu.com/landscape). It exposes Landscape resources like scripts as Terraform resources and data sources so you can manage them alongside the rest of your infrastructure.
+Terraform provider for [Landscape](https://ubuntu.com/landscape). Manages Landscape scripts and script profiles as Terraform resources.
 
 ## Requirements
 
-- [Terraform](https://developer.hashicorp.com/terraform/downloads) >= 1.0
-- [Go](https://golang.org/doc/install) >= 1.23
+- Terraform >= 1.6
+- Go >= 1.23 (to build from source)
 
 ## Usage
 
@@ -13,7 +13,8 @@ Terraform provider for [Landscape](https://ubuntu.com/landscape). It exposes Lan
 terraform {
   required_providers {
     landscape = {
-      source = "jansdhillon/landscape"
+      source  = "jansdhillon/landscape"
+      version = "~> 0.1"
     }
   }
 }
@@ -23,66 +24,97 @@ provider "landscape" {
   access_key = var.landscape_access_key
   secret_key = var.landscape_secret_key
 }
+```
 
-resource "landscape_script" "example" {
-  title       = "hello-world"
-  code        = "#!/bin/bash\necho 'hello world'"
+Email/password auth is also supported:
 
-  # Create a V2 script (omit for V1)
-  status      = "ACTIVE"
-}
-
-resource "landscape_script_attachment" "att" {
-  script_id = landscape_script.example.id
-  filename  = "hello.txt"
-  content   = <<-EOT
-  secret attachment content
-  EOT
+```terraform
+provider "landscape" {
+  base_url = var.landscape_base_url
+  email    = var.landscape_email
+  password = var.landscape_password
+  account  = var.landscape_account  # optional
 }
 ```
 
-See `examples/` for more complete configurations and `docs/` for the generated provider, resource, and data source reference.
+All provider arguments can also be set via environment variables: `LANDSCAPE_BASE_URL`, `LANDSCAPE_ACCESS_KEY`, `LANDSCAPE_SECRET_KEY`, `LANDSCAPE_EMAIL`, `LANDSCAPE_PASSWORD`, `LANDSCAPE_ACCOUNT`.
 
-## Building the Provider
+## Resources and data sources
 
-1. Clone the repository
-1. Enter the repository directory
-1. Build the provider using the Go `install` command:
+| Type        | Name                             | Description                                            |
+| ----------- | -------------------------------- | ------------------------------------------------------ |
+| resource    | `landscape_script_v1`            | Legacy V1 script                                       |
+| resource    | `landscape_script_v2`            | V2 script with interpreter line                        |
+| resource    | `landscape_script_v2_attachment` | File attachment for a V2 script                        |
+| resource    | `landscape_script_profile`       | Script profile (event, recurring, or one-time trigger) |
+| data source | `landscape_script_v1`            | Read a V1 script by ID                                 |
+| data source | `landscape_script_v2`            | Read a V2 script by ID                                 |
+| data source | `landscape_script_v2_attachment` | Read a script attachment by ID                         |
+| data source | `landscape_script_profile`       | Read a script profile by ID                            |
+
+See [docs/](docs/) or the [Terraform Registry](https://registry.terraform.io/providers/jansdhillon/landscape) for full attribute reference.
+
+## Example
+
+```terraform
+resource "landscape_script_v2" "deploy" {
+  title      = "deploy-app"
+  code       = file("scripts/deploy.sh")
+  username   = "ubuntu"
+  time_limit = 300
+}
+
+resource "landscape_script_profile" "on_enroll" {
+  title      = "post-enrollment deploy"
+  script_id  = landscape_script_v2.deploy.id
+  username   = "ubuntu"
+  time_limit = 300
+  trigger = {
+    type       = "event"
+    event_type = "post_enrollment"
+  }
+}
+
+resource "landscape_script_profile" "nightly" {
+  title      = "nightly deploy"
+  script_id  = landscape_script_v2.deploy.id
+  username   = "ubuntu"
+  time_limit = 300
+  tags       = ["prod"]
+  trigger = {
+    type        = "recurring"
+    interval    = "0 2 * * *"
+    start_after = "2026-04-01T00:00:00Z"
+  }
+}
+```
+
+## Building from source
 
 ```shell
+git clone https://github.com/jansdhillon/terraform-provider-landscape
+cd terraform-provider-landscape
 go install
 ```
 
-## Adding Dependencies
-
-This provider uses [Go modules](https://github.com/golang/go/wiki/Modules).
-Please see the Go documentation for the most up to date information about using Go modules.
-
-To add a new dependency `github.com/author/dependency` to your Terraform provider:
+To regenerate docs:
 
 ```shell
-go get github.com/author/dependency
-go mod tidy
+make generate
 ```
 
-Then commit the changes to `go.mod` and `go.sum`.
+To run unit tests:
 
-## Using the provider
+```shell
+go test ./...
+```
 
-Fill this in for each provider
-
-## Developing the Provider
-
-If you wish to work on the provider, you'll first need [Go](http://www.golang.org) installed on your machine (see [Requirements](#requirements) above).
-
-To compile the provider, run `go install`. This will build the provider and put the provider binary in the `$GOPATH/bin` directory.
-
-To generate or update documentation, run `make generate`.
-
-In order to run the full suite of Acceptance tests, run `make testacc`.
-
-*Note:* Acceptance tests create real resources, and often cost money to run.
+Acceptance tests run against a real Landscape instance and require credentials in the environment:
 
 ```shell
 make testacc
 ```
+
+## Development
+
+The provider is generated from the [landscape-openapi-spec](https://github.com/jansdhillon/landscape-openapi-spec) via [landscape-go-api-client](https://github.com/jansdhillon/landscape-go-api-client). When the spec is updated, the client is automatically regenerated and Dependabot opens a bump PR against this repo.
