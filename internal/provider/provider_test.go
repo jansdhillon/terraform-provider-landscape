@@ -4,6 +4,9 @@
 package provider
 
 import (
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-framework/providerserver"
@@ -27,7 +30,16 @@ var testAccProtoV6ProviderFactories = map[string]func() (tfprotov6.ProviderServe
 // }
 
 func testAccPreCheck(t *testing.T) {
-	// You can add code here to run prior to any test case execution, for example assertions
-	// about the appropriate environment variables being set are common to see in a pre-check
-	// function.
+	t.Helper()
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/login/access-key", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_ = json.NewEncoder(w).Encode(map[string]string{"token": "mock-token"})
+	})
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+	t.Setenv("LANDSCAPE_BASE_URL", srv.URL)
+	t.Setenv("LANDSCAPE_ACCESS_KEY", "mock-access-key")
+	t.Setenv("LANDSCAPE_SECRET_KEY", "mock-secret-key")
 }
