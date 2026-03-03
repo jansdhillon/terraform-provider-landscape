@@ -275,8 +275,6 @@ func (r *ScriptProfileResource) ImportState(ctx context.Context, req resource.Im
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("id"), id)...)
 }
 
-// ── helpers ──────────────────────────────────────────────────────────────────
-
 func planToCreateBody(ctx context.Context, plan ScriptProfileResourceModel) (landscape.ScriptProfileCreateBody, diag.Diagnostics) {
 	var diags diag.Diagnostics
 
@@ -332,11 +330,11 @@ func planTriggerToCreateRequest(_ context.Context, triggerObj types.Object) (lan
 	var t landscape.ScriptProfileTriggerCreateRequest
 
 	attrs := triggerObj.Attributes()
-	triggerType := attrs["type"].(types.String).ValueString()
+	triggerType := attrs["type"].(types.String).ValueString() //nolint:forcetypeassert
 
 	switch triggerType {
 	case "event":
-		eventType := attrs["event_type"].(types.String).ValueString()
+		eventType := attrs["event_type"].(types.String).ValueString() //nolint:forcetypeassert
 		err := t.FromScriptProfileEventTrigger(landscape.ScriptProfileEventTrigger{
 			TriggerType: landscape.Event,
 			EventType:   landscape.ScriptProfileEventType(eventType),
@@ -345,8 +343,8 @@ func planTriggerToCreateRequest(_ context.Context, triggerObj types.Object) (lan
 			diags.AddError("Failed to build event trigger", err.Error())
 		}
 	case "recurring":
-		interval := attrs["interval"].(types.String).ValueString()
-		startAfterStr := attrs["start_after"].(types.String).ValueString()
+		interval := attrs["interval"].(types.String).ValueString()         //nolint:forcetypeassert
+		startAfterStr := attrs["start_after"].(types.String).ValueString() //nolint:forcetypeassert
 		startAfter, err := time.Parse(time.RFC3339, startAfterStr)
 		if err != nil {
 			diags.AddError("Invalid start_after", fmt.Sprintf("Must be RFC3339: %s", err))
@@ -361,7 +359,7 @@ func planTriggerToCreateRequest(_ context.Context, triggerObj types.Object) (lan
 			diags.AddError("Failed to build recurring trigger", err.Error())
 		}
 	case "one_time":
-		tsStr := attrs["timestamp"].(types.String).ValueString()
+		tsStr := attrs["timestamp"].(types.String).ValueString() //nolint:forcetypeassert
 		ts, err := time.Parse(time.RFC3339, tsStr)
 		if err != nil {
 			diags.AddError("Invalid timestamp", fmt.Sprintf("Must be RFC3339: %s", err))
@@ -385,11 +383,11 @@ func planTriggerToPatchRequest(_ context.Context, triggerObj types.Object) (*lan
 	var t landscape.ScriptProfileTriggerPatchRequest
 
 	attrs := triggerObj.Attributes()
-	triggerType := attrs["type"].(types.String).ValueString()
+	triggerType := attrs["type"].(types.String).ValueString() //nolint:forcetypeassert
 
 	switch triggerType {
 	case "event":
-		eventType := attrs["event_type"].(types.String).ValueString()
+		eventType := attrs["event_type"].(types.String).ValueString() //nolint:forcetypeassert
 		err := t.FromScriptProfileEventTrigger(landscape.ScriptProfileEventTrigger{
 			TriggerType: landscape.Event,
 			EventType:   landscape.ScriptProfileEventType(eventType),
@@ -398,8 +396,8 @@ func planTriggerToPatchRequest(_ context.Context, triggerObj types.Object) (*lan
 			diags.AddError("Failed to build event trigger", err.Error())
 		}
 	case "recurring":
-		interval := attrs["interval"].(types.String).ValueString()
-		startAfterStr := attrs["start_after"].(types.String).ValueString()
+		interval := attrs["interval"].(types.String).ValueString()         //nolint:forcetypeassert
+		startAfterStr := attrs["start_after"].(types.String).ValueString() //nolint:forcetypeassert
 		var startAfterPtr *time.Time
 		if startAfterStr != "" {
 			sa, err := time.Parse(time.RFC3339, startAfterStr)
@@ -418,7 +416,7 @@ func planTriggerToPatchRequest(_ context.Context, triggerObj types.Object) (*lan
 			diags.AddError("Failed to build recurring trigger", err.Error())
 		}
 	case "one_time":
-		tsStr := attrs["timestamp"].(types.String).ValueString()
+		tsStr := attrs["timestamp"].(types.String).ValueString() //nolint:forcetypeassert
 		ts, err := time.Parse(time.RFC3339, tsStr)
 		if err != nil {
 			diags.AddError("Invalid timestamp", fmt.Sprintf("Must be RFC3339: %s", err))
