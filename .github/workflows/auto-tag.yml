@@ -1,0 +1,35 @@
+name: Auto Tag
+
+on:
+  workflow_run:
+    workflows:
+      - Tests
+    branches:
+      - main
+    types:
+      - completed
+
+permissions:
+  contents: write
+
+jobs:
+  tag:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Bump patch version and tag
+        run: |
+          latest=$(git tag -l 'v*' | sort -V | tail -1)
+          if [[ -z "$latest" ]]; then
+            new="v0.0.1"
+          else
+            IFS='.' read -r major minor patch <<< "${latest#v}"
+            new="v${major}.${minor}.$((patch + 1))"
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag "$new"
+          git push origin "$new"
