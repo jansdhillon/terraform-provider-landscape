@@ -1,7 +1,8 @@
 terraform {
   required_providers {
     landscape = {
-      source = "jansdhillon/landscape"
+      source  = "jansdhillon/landscape"
+      version = "~> 0.1"
     }
   }
 }
@@ -28,6 +29,36 @@ resource "landscape_script_v2_attachment" "my_attachment" {
   content   = <<-EOT
   my attachment for a v2 script
   EOT
+}
+
+# Script profile — run on every post-enrollment event
+resource "landscape_script_profile" "on_enroll" {
+  title      = "post-enrollment setup"
+  script_id  = landscape_script_v2.active.id
+  username   = "root"
+  time_limit = 300
+  trigger = {
+    type       = "event"
+    event_type = "post_enrollment"
+  }
+}
+
+# Script profile — recurring every hour after a start date
+resource "landscape_script_profile" "hourly" {
+  title      = "hourly check"
+  script_id  = landscape_script_v2.active.id
+  username   = "ubuntu"
+  time_limit = 60
+  tags       = ["web", "prod"]
+  trigger = {
+    type        = "recurring"
+    interval    = "0 * * * *"
+    start_after = "2026-04-01T00:00:00Z"
+  }
+}
+
+data "landscape_script_profile" "read_profile" {
+  id = landscape_script_profile.on_enroll.id
 }
 
 data "landscape_script_v1" "data_v1" {

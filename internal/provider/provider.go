@@ -261,6 +261,7 @@ func (p *landscapeProvider) DataSources(_ context.Context) []func() datasource.D
 		NewScriptV1DataSource,
 		NewScriptV2DataSource,
 		NewScriptV2AttachmentDataSource,
+		NewScriptProfileDataSource,
 	}
 }
 
@@ -270,5 +271,6 @@ func (p *landscapeProvider) Resources(_ context.Context) []func() resource.Resou
 		NewScriptV1Resource,
 		NewScriptV2Resource,
 		NewScriptV2AttachmentResource,
+		NewScriptProfileResource,
 	}
 }
