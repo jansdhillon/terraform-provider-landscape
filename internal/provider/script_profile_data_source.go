@@ -6,7 +6,7 @@ package provider
 import (
 	"context"
 	"fmt"
-	"time"
+	"sort"
 
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/datasource/schema"
@@ -33,7 +33,7 @@ type ScriptProfileDataSourceModel struct {
 	Username     types.String `tfsdk:"username"`
 	TimeLimit    types.Int64  `tfsdk:"time_limit"`
 	AllComputers types.Bool   `tfsdk:"all_computers"`
-	Tags         types.List   `tfsdk:"tags"`
+	Tags         types.Set    `tfsdk:"tags"`
 	Archived     types.Bool   `tfsdk:"archived"`
 	CreatedAt    types.String `tfsdk:"created_at"`
 	LastEditedAt types.String `tfsdk:"last_edited_at"`
@@ -76,7 +76,7 @@ func (d *ScriptProfileDataSource) Schema(_ context.Context, _ datasource.SchemaR
 				Computed:            true,
 				MarkdownDescription: "Whether the script profile targets all computers in the account.",
 			},
-			"tags": schema.ListAttribute{
+			"tags": schema.SetAttribute{
 				Computed:            true,
 				ElementType:         types.StringType,
 				MarkdownDescription: "List of tags used to target specific computers.",
@@ -156,7 +156,10 @@ func (d *ScriptProfileDataSource) Read(ctx context.Context, req datasource.ReadR
 	}
 
 	detail := res.JSON200
-	tags, diags := types.ListValueFrom(ctx, types.StringType, detail.Tags)
+	sortedTags := make([]string, len(detail.Tags))
+	copy(sortedTags, detail.Tags)
+	sort.Strings(sortedTags)
+	tags, diags := types.SetValueFrom(ctx, types.StringType, sortedTags)
 	resp.Diagnostics.Append(diags...)
 
 	triggerObj, diags := triggerResponseToObject(detail.Trigger)
@@ -175,8 +178,8 @@ func (d *ScriptProfileDataSource) Read(ctx context.Context, req datasource.ReadR
 		AllComputers: types.BoolValue(detail.AllComputers),
 		Tags:         tags,
 		Archived:     types.BoolValue(detail.Archived),
-		CreatedAt:    types.StringValue(detail.CreatedAt.Format(time.RFC3339)),
-		LastEditedAt: types.StringValue(detail.LastEditedAt.Format(time.RFC3339)),
+		CreatedAt:    types.StringValue(detail.CreatedAt),
+		LastEditedAt: types.StringValue(detail.LastEditedAt),
 		Trigger:      triggerObj,
 	}
 

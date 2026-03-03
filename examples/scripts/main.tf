@@ -33,7 +33,7 @@ resource "landscape_script_v2_attachment" "my_attachment" {
 
 # Script profile — run on every post-enrollment event
 resource "landscape_script_profile" "on_enroll" {
-  title      = "post-enrollment setup"
+  title      = "post-enrollment setup ${uuid()}"
   script_id  = landscape_script_v2.active.id
   username   = "root"
   time_limit = 300
@@ -45,7 +45,7 @@ resource "landscape_script_profile" "on_enroll" {
 
 # Script profile — recurring every hour after a start date
 resource "landscape_script_profile" "hourly" {
-  title      = "hourly check"
+  title      = "hourly check ${uuid()}"
   script_id  = landscape_script_v2.active.id
   username   = "ubuntu"
   time_limit = 60

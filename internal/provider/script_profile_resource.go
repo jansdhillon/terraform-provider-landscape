@@ -6,6 +6,7 @@ package provider
 import (
 	"context"
 	"fmt"
+	"sort"
 	"strconv"
 	"time"
 
@@ -47,7 +48,7 @@ type ScriptProfileResourceModel struct {
 	Username     types.String `tfsdk:"username"`
 	TimeLimit    types.Int64  `tfsdk:"time_limit"`
 	AllComputers types.Bool   `tfsdk:"all_computers"`
-	Tags         types.List   `tfsdk:"tags"`
+	Tags         types.Set    `tfsdk:"tags"`
 	Archived     types.Bool   `tfsdk:"archived"`
 	CreatedAt    types.String `tfsdk:"created_at"`
 	LastEditedAt types.String `tfsdk:"last_edited_at"`
@@ -88,7 +89,7 @@ func (r *ScriptProfileResource) Schema(_ context.Context, _ resource.SchemaReque
 				Default:             booldefault.StaticBool(false),
 				MarkdownDescription: "Whether the script profile targets all computers in the account.",
 			},
-			"tags": resourceschema.ListAttribute{
+			"tags": resourceschema.SetAttribute{
 				Optional:            true,
 				Computed:            true,
 				ElementType:         types.StringType,
@@ -284,6 +285,8 @@ func planToCreateBody(ctx context.Context, plan ScriptProfileResourceModel) (lan
 	var tags []string
 	if !plan.Tags.IsNull() && !plan.Tags.IsUnknown() {
 		diags.Append(plan.Tags.ElementsAs(ctx, &tags, false)...)
+	} else {
+		tags = []string{}
 	}
 
 	allComputers := plan.AllComputers.ValueBool()
@@ -438,7 +441,10 @@ func planTriggerToPatchRequest(_ context.Context, triggerObj types.Object) (*lan
 func scriptProfileDetailToState(ctx context.Context, detail *landscape.ScriptProfileDetail) (ScriptProfileResourceModel, diag.Diagnostics) {
 	var diags diag.Diagnostics
 
-	tags, d := types.ListValueFrom(ctx, types.StringType, detail.Tags)
+	sortedTags := make([]string, len(detail.Tags))
+	copy(sortedTags, detail.Tags)
+	sort.Strings(sortedTags)
+	tags, d := types.SetValueFrom(ctx, types.StringType, sortedTags)
 	diags.Append(d...)
 
 	triggerObj, d := triggerResponseToObject(detail.Trigger)
@@ -454,8 +460,8 @@ func scriptProfileDetailToState(ctx context.Context, detail *landscape.ScriptPro
 		AllComputers: types.BoolValue(detail.AllComputers),
 		Tags:         tags,
 		Archived:     types.BoolValue(detail.Archived),
-		CreatedAt:    types.StringValue(detail.CreatedAt.Format(time.RFC3339)),
-		LastEditedAt: types.StringValue(detail.LastEditedAt.Format(time.RFC3339)),
+		CreatedAt:    types.StringValue(detail.CreatedAt),
+		LastEditedAt: types.StringValue(detail.LastEditedAt),
 		Trigger:      triggerObj,
 	}, diags
 }
@@ -463,8 +469,8 @@ func scriptProfileDetailToState(ctx context.Context, detail *landscape.ScriptPro
 func triggerResponseToObject(trigger landscape.ScriptProfileTriggerResponse) (types.Object, diag.Diagnostics) {
 	null := func() types.String { return types.StringNull() }
 
-	// Try event trigger first
-	if ev, err := trigger.AsScriptProfileEventTrigger(); err == nil {
+	// Unmarshal to detect the discriminator field first
+	if ev, err := trigger.AsScriptProfileEventTrigger(); err == nil && string(ev.TriggerType) == "event" {
 		return types.ObjectValue(triggerAttrTypes, map[string]attr.Value{
 			"type":        types.StringValue(string(ev.TriggerType)),
 			"event_type":  types.StringValue(string(ev.EventType)),
@@ -474,8 +480,7 @@ func triggerResponseToObject(trigger landscape.ScriptProfileTriggerResponse) (ty
 		})
 	}
 
-	// Try recurring trigger
-	if sched, err := trigger.AsScriptProfileScheduleTrigger(); err == nil {
+	if sched, err := trigger.AsScriptProfileScheduleTrigger(); err == nil && string(sched.TriggerType) == "recurring" {
 		startAfter := null()
 		if !sched.StartAfter.IsZero() {
 			startAfter = types.StringValue(sched.StartAfter.Format(time.RFC3339))
@@ -489,8 +494,7 @@ func triggerResponseToObject(trigger landscape.ScriptProfileTriggerResponse) (ty
 		})
 	}
 
-	// Try one-time trigger
-	if ot, err := trigger.AsScriptProfileOneTimeTrigger(); err == nil {
+	if ot, err := trigger.AsScriptProfileOneTimeTrigger(); err == nil && string(ot.TriggerType) == "one_time" {
 		return types.ObjectValue(triggerAttrTypes, map[string]attr.Value{
 			"type":        types.StringValue(string(ot.TriggerType)),
 			"event_type":  null(),
