@@ -10,12 +10,14 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	resourceschema "github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/booldefault"
+	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	landscape "github.com/jansdhillon/landscape-go-api-client/client"
 )
@@ -118,6 +120,9 @@ func (r *ScriptProfileResource) Schema(_ context.Context, _ resource.SchemaReque
 					"type": resourceschema.StringAttribute{
 						Required:            true,
 						MarkdownDescription: "Trigger type: `event`, `recurring`, or `one_time`.",
+						Validators: []validator.String{
+							stringvalidator.OneOf("event", "recurring", "one_time"),
+						},
 					},
 					"event_type": resourceschema.StringAttribute{
 						Optional:            true,

@@ -27,7 +27,7 @@ Reads a Landscape script profile by ID.
 - `created_at` (String) When the script profile was created (RFC3339).
 - `last_edited_at` (String) When the script profile was last modified (RFC3339).
 - `script_id` (Number) The ID of the script this profile executes.
-- `tags` (List of String) List of tags used to target specific computers.
+- `tags` (Set of String) List of tags used to target specific computers.
 - `time_limit` (Number) Maximum execution time for the script in seconds.
 - `title` (String) The title of the script profile.
 - `trigger` (Attributes) The trigger that controls when the script profile executes. (see [below for nested schema](#nestedatt--trigger))

@@ -55,7 +55,7 @@ func TestAccScriptProfileResourceInvalidTriggerType(t *testing.T) {
 		Steps: []resource.TestStep{
 			{
 				Config:      testAccScriptProfileResourceInvalidTriggerTypeConfig,
-				ExpectError: regexp.MustCompile(`(?i)trigger type`),
+				ExpectError: regexp.MustCompile(`(?i)trigger\.type`),
 			},
 		},
 	})

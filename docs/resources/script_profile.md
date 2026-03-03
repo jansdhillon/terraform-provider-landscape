@@ -26,7 +26,7 @@ Manages a Landscape script profile. A script profile defines when and how a V2 s
 ### Optional
 
 - `all_computers` (Boolean) Whether the script profile targets all computers in the account.
-- `tags` (List of String) List of tags used to target specific computers.
+- `tags` (Set of String) List of tags used to target specific computers.
 
 ### Read-Only
 
