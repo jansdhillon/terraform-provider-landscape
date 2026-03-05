@@ -22,4 +22,5 @@ description: |-
 - `email` (String) Landscape account email (required with password for email authentication). Can also be set with the LANDSCAPE_EMAIL environment variable.
 - `password` (String, Sensitive) Landscape account password (required with email for email authentication). Can also be set with the LANDSCAPE_PASSWORD environment variable.
 - `secret_key` (String, Sensitive) Landscape API secret key (required with access_key for access key authentication). Can also be set with the LANDSCAPE_SECRET_KEY environment variable.
+- `tls_ca_cert` (String) PEM-encoded CA certificate to trust for TLS connections. Use this instead of tls_ca_file when the cert is available as a string (e.g. from a secret). Can also be set with the LANDSCAPE_TLS_CA_CERT environment variable.
 - `tls_ca_file` (String) Path to a PEM-encoded CA certificate file to trust for TLS connections (e.g. for self-signed certs). Can also be set with the LANDSCAPE_TLS_CA_FILE environment variable.
