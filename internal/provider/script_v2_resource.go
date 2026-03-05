@@ -7,7 +7,6 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
-	"net/url"
 
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
@@ -187,36 +186,39 @@ func (r *ScriptV2Resource) Create(ctx context.Context, req resource.CreateReques
 		return
 	}
 
-	vals := url.Values{
-		"title":       []string{title.ValueString()},
-		"code":        []string{base64.StdEncoding.EncodeToString([]byte(codeAttr.ValueString()))},
-		"script_type": []string{"V2"},
+	scriptType := "V2"
+	createPar := &landscape.CreateScriptParams{
+		Version:    "2011-08-01",
+		Action:     "CreateScript",
+		Title:      title.ValueString(),
+		Code:       base64.StdEncoding.EncodeToString([]byte(codeAttr.ValueString())),
+		ScriptType: &scriptType,
 	}
-
 	if !timeLimit.IsNull() && !timeLimit.IsUnknown() {
-		vals.Add("time_limit", fmt.Sprint(timeLimit.ValueInt64()))
+		t := int(timeLimit.ValueInt64())
+		createPar.TimeLimit = &t
 	}
 	if !username.IsNull() && !username.IsUnknown() {
-		vals.Add("username", username.ValueString())
+		s := username.ValueString()
+		createPar.Username = &s
 	}
 	if !accessGroup.IsNull() && !accessGroup.IsUnknown() {
-		vals.Add("access_group", accessGroup.ValueString())
+		s := accessGroup.ValueString()
+		createPar.AccessGroup = &s
 	}
 
-	res, err := r.client.InvokeLegacyActionWithResponse(ctx, landscape.LegacyActionParams("CreateScript"), landscape.EncodeQueryRequestEditor(vals))
+	res, err := r.client.CreateScriptWithResponse(ctx, createPar)
 	if err != nil {
 		resp.Diagnostics.AddError("Failed to create script", err.Error())
 		return
 	}
 
 	if res.JSON200 == nil {
-		errMsg := "Unexpected error creating script"
-		if res.JSON400 != nil {
+		errMsg := res.Status()
+		if res.JSON400 != nil && res.JSON400.Message != nil {
 			errMsg = *res.JSON400.Message
-		} else if res.JSON401 != nil {
+		} else if res.JSON401 != nil && res.JSON401.Message != nil {
 			errMsg = *res.JSON401.Message
-		} else if res.JSON404 != nil {
-			errMsg = *res.JSON404.Message
 		}
 
 		resp.Diagnostics.AddError("Failed to create script", errMsg)
@@ -241,13 +243,7 @@ func (r *ScriptV2Resource) Create(ctx context.Context, req resource.CreateReques
 		return
 	}
 	if getRes.JSON200 == nil {
-		errMsg := fmt.Sprintf("Error getting script: %s", getRes.Status())
-
-		if getRes.JSON404 != nil {
-			errMsg = *getRes.JSON404.Message
-		}
-
-		resp.Diagnostics.AddError("Failed to read script after create", errMsg)
+		resp.Diagnostics.AddError("Failed to read script after create", fmt.Sprintf("Error getting script: %s", getRes.Status()))
 		return
 	}
 
@@ -310,26 +306,29 @@ func (r *ScriptV2Resource) Update(ctx context.Context, req resource.UpdateReques
 		return
 	}
 
-	vals := url.Values{
-		"script_id": []string{fmt.Sprint(state.Id.ValueInt64())},
+	editPar := &landscape.EditScriptParams{
+		Version:  "2011-08-01",
+		Action:   "EditScript",
+		ScriptId: int(state.Id.ValueInt64()),
 	}
-
 	if !plan.Title.IsUnknown() && !plan.Title.IsNull() {
-		vals.Set("title", plan.Title.ValueString())
+		s := plan.Title.ValueString()
+		editPar.Title = &s
 	}
 	if !plan.TimeLimit.IsUnknown() && !plan.TimeLimit.IsNull() {
-		vals.Set("time_limit", fmt.Sprint(plan.TimeLimit.ValueInt64()))
+		t := int(plan.TimeLimit.ValueInt64())
+		editPar.TimeLimit = &t
 	}
 	if !plan.Username.IsUnknown() && !plan.Username.IsNull() {
-		vals.Set("username", plan.Username.ValueString())
+		s := plan.Username.ValueString()
+		editPar.Username = &s
 	}
 	if !plan.Code.IsUnknown() && !plan.Code.IsNull() && plan.Code != state.Code {
 		b64 := base64.StdEncoding.EncodeToString([]byte(plan.Code.ValueString()))
-		vals.Set("code", b64)
+		editPar.Code = &b64
 	}
 
-	editor := landscape.EncodeQueryRequestEditor(vals)
-	res, err := r.client.InvokeLegacyActionWithResponse(ctx, landscape.LegacyActionParams("EditScript"), editor)
+	res, err := r.client.EditScriptWithResponse(ctx, editPar)
 	errTitle := "Updating v2 script failed"
 	if err != nil {
 		resp.Diagnostics.AddError(errTitle, err.Error())
@@ -337,18 +336,8 @@ func (r *ScriptV2Resource) Update(ctx context.Context, req resource.UpdateReques
 	}
 
 	if res.JSON200 == nil {
-		if res.JSON400 != nil {
+		if res.JSON400 != nil && res.JSON400.Message != nil {
 			resp.Diagnostics.AddError(errTitle, *res.JSON400.Message)
-			return
-		}
-
-		if res.JSON404 != nil {
-			resp.Diagnostics.AddError(errTitle, *res.JSON404.Message)
-			return
-		}
-
-		if res.JSON401 != nil {
-			resp.Diagnostics.AddError(errTitle, *res.JSON404.Message)
 			return
 		}
 

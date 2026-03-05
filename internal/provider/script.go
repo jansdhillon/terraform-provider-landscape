@@ -6,8 +6,6 @@ package provider
 import (
 	"context"
 	"fmt"
-	"net/url"
-	"strconv"
 
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
@@ -43,11 +41,11 @@ func int64Ptr(i int64) *int64 {
 func fetchV1Code(ctx context.Context, client *landscape.ClientWithResponses, id int) (string, diag.Diagnostics) {
 	var diags diag.Diagnostics
 
-	codeRes, err := client.InvokeLegacyActionWithResponse(
-		ctx,
-		landscape.LegacyActionParams("GetScriptCode"),
-		landscape.EncodeQueryRequestEditor(url.Values{"script_id": []string{strconv.Itoa(id)}}),
-	)
+	codeRes, err := client.GetScriptCodeWithResponse(ctx, &landscape.GetScriptCodeParams{
+		Version:  "2011-08-01",
+		Action:   "GetScriptCode",
+		ScriptId: id,
+	})
 	if err != nil {
 		diags.AddError("code fetch failed", err.Error())
 		return "", diags

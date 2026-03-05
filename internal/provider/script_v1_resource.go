@@ -7,7 +7,6 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
-	"net/url"
 	"strconv"
 
 	"github.com/hashicorp/terraform-plugin-framework/attr"
@@ -136,38 +135,40 @@ func (r *ScriptV1Resource) Create(ctx context.Context, req resource.CreateReques
 		return
 	}
 
-	params := landscape.LegacyActionParams("CreateScript")
-	vals := url.Values{
-		"title":       []string{title.ValueString()},
-		"code":        []string{base64.StdEncoding.EncodeToString([]byte(codeAttr.ValueString()))},
-		"script_type": []string{"V1"},
+	scriptType := "V1"
+	createPar := &landscape.CreateScriptParams{
+		Version:    "2011-08-01",
+		Action:     "CreateScript",
+		Title:      title.ValueString(),
+		Code:       base64.StdEncoding.EncodeToString([]byte(codeAttr.ValueString())),
+		ScriptType: &scriptType,
 	}
-
 	if !timeLimit.IsNull() && !timeLimit.IsUnknown() {
-		vals.Set("time_limit", fmt.Sprint(timeLimit.ValueInt64()))
+		t := int(timeLimit.ValueInt64())
+		createPar.TimeLimit = &t
 	}
 	if !username.IsNull() && !username.IsUnknown() {
-		vals.Set("username", username.ValueString())
+		s := username.ValueString()
+		createPar.Username = &s
 	}
 	if !accessGroup.IsNull() && !accessGroup.IsUnknown() {
-		vals.Set("access_group", accessGroup.ValueString())
+		s := accessGroup.ValueString()
+		createPar.AccessGroup = &s
 	}
 
-	editor := landscape.EncodeQueryRequestEditor(vals)
-	res, err := r.client.InvokeLegacyActionWithResponse(ctx, params, editor)
+	res, err := r.client.CreateScriptWithResponse(ctx, createPar)
 	errTitle := "Failed to create V1 script"
 	if err != nil {
 		resp.Diagnostics.AddError(errTitle, err.Error())
 		return
 	}
 
-	if res.JSON404 != nil {
-		resp.Diagnostics.AddError(errTitle, *res.JSON404.Message)
-		return
-	}
-
 	if res.JSON200 == nil {
-		resp.Diagnostics.AddError(errTitle, *res.JSON400.Message)
+		errMsg := res.Status()
+		if res.JSON400 != nil && res.JSON400.Message != nil {
+			errMsg = *res.JSON400.Message
+		}
+		resp.Diagnostics.AddError(errTitle, errMsg)
 		return
 	}
 
@@ -183,24 +184,19 @@ func (r *ScriptV1Resource) Create(ctx context.Context, req resource.CreateReques
 		return
 	}
 
-	codeRes, err := r.client.InvokeLegacyActionWithResponse(
-		ctx,
-		landscape.LegacyActionParams("GetScriptCode"),
-		landscape.EncodeQueryRequestEditor(url.Values{"script_id": []string{strconv.Itoa(v1Script.Id)}}),
-	)
+	codeRes, err := r.client.GetScriptCodeWithResponse(ctx, &landscape.GetScriptCodeParams{
+		Version:  "2011-08-01",
+		Action:   "GetScriptCode",
+		ScriptId: v1Script.Id,
+	})
 	errTitle = "Failed to get script code"
 	if err != nil {
 		resp.Diagnostics.AddError(errTitle, err.Error())
 		return
 	}
 
-	if res.JSON200 == nil {
-		if res.JSON404 != nil {
-			resp.Diagnostics.AddError(errTitle, *res.JSON404.Message)
-			return
-		}
-
-		resp.Diagnostics.AddError(errTitle, fmt.Sprintf("An error occurred getting the script code: %s", res.Status()))
+	if codeRes.JSON200 == nil {
+		resp.Diagnostics.AddError(errTitle, fmt.Sprintf("An error occurred getting the script code: %s", codeRes.Status()))
 		return
 	}
 
@@ -275,34 +271,32 @@ func (r *ScriptV1Resource) Update(ctx context.Context, req resource.UpdateReques
 		return
 	}
 
-	vals := url.Values{
-		"script_id": []string{fmt.Sprint(state.Id.ValueInt64())},
+	editPar := &landscape.EditScriptParams{
+		Version:  "2011-08-01",
+		Action:   "EditScript",
+		ScriptId: int(state.Id.ValueInt64()),
 	}
-
 	if !plan.Title.IsUnknown() && !plan.Title.IsNull() {
-		vals.Set("title", plan.Title.ValueString())
+		s := plan.Title.ValueString()
+		editPar.Title = &s
 	}
 	if !plan.TimeLimit.IsUnknown() && !plan.TimeLimit.IsNull() {
-		vals.Set("time_limit", fmt.Sprint(plan.TimeLimit.ValueInt64()))
+		t := int(plan.TimeLimit.ValueInt64())
+		editPar.TimeLimit = &t
 	}
 	if !plan.Username.IsUnknown() && !plan.Username.IsNull() {
-		vals.Set("username", plan.Username.ValueString())
+		s := plan.Username.ValueString()
+		editPar.Username = &s
 	}
 	if !plan.Code.IsUnknown() && !plan.Code.IsNull() && plan.Code != state.Code {
 		b64 := base64.StdEncoding.EncodeToString([]byte(plan.Code.ValueString()))
-		vals.Set("code", b64)
+		editPar.Code = &b64
 	}
 
-	editor := landscape.EncodeQueryRequestEditor(vals)
-	res, err := r.client.InvokeLegacyActionWithResponse(ctx, landscape.LegacyActionParams("EditScript"), editor)
+	res, err := r.client.EditScriptWithResponse(ctx, editPar)
 	errTitle := "Update failed"
 	if err != nil {
 		resp.Diagnostics.AddError(errTitle, err.Error())
-		return
-	}
-
-	if res.JSON404 != nil {
-		resp.Diagnostics.AddError(errTitle, *res.JSON404.Message)
 		return
 	}
 
@@ -354,11 +348,11 @@ func (r *ScriptV1Resource) Delete(ctx context.Context, req resource.DeleteReques
 		return
 	}
 
-	vals := url.Values{
-		"script_id": []string{fmt.Sprint(state.Id.ValueInt64())},
-	}
-
-	_, err := r.client.InvokeLegacyAction(ctx, landscape.LegacyActionParams("RemoveScript"), landscape.EncodeQueryRequestEditor(vals))
+	_, err := r.client.RemoveScriptWithResponse(ctx, &landscape.RemoveScriptParams{
+		Version:  "2011-08-01",
+		Action:   "RemoveScript",
+		ScriptId: int(state.Id.ValueInt64()),
+	})
 	if err != nil {
 		resp.Diagnostics.AddError("Failed to remove script", err.Error())
 	}

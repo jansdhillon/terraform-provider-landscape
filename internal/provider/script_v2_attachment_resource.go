@@ -7,7 +7,6 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
-	"net/url"
 
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
@@ -87,15 +86,14 @@ func (r *ScriptV2AttachmentResource) Create(ctx context.Context, req resource.Cr
 		return
 	}
 
-	scriptIDStr := fmt.Sprint(plan.ScriptId.ValueInt64())
 	fileParam := fmt.Sprintf("%s$$%s", plan.Filename.ValueString(), base64.StdEncoding.EncodeToString([]byte(plan.Content.ValueString())))
 
-	vals := url.Values{
-		"script_id": []string{scriptIDStr},
-		"file":      []string{fileParam},
-	}
-
-	createRes, err := r.client.InvokeLegacyActionWithResponse(ctx, landscape.LegacyActionParams("CreateScriptAttachment"), landscape.EncodeQueryRequestEditor(vals))
+	createRes, err := r.client.CreateScriptAttachmentWithResponse(ctx, &landscape.CreateScriptAttachmentParams{
+		Version:  "2011-08-01",
+		Action:   "CreateScriptAttachment",
+		ScriptId: int(plan.ScriptId.ValueInt64()),
+		File:     fileParam,
+	})
 	if err != nil {
 		resp.Diagnostics.AddError("Failed to create attachment", err.Error())
 		return
@@ -210,12 +208,12 @@ func (r *ScriptV2AttachmentResource) Delete(ctx context.Context, req resource.De
 		return
 	}
 
-	vals := url.Values{
-		"script_id":     []string{fmt.Sprint(state.ScriptId.ValueInt64())},
-		"attachment_id": []string{fmt.Sprint(state.Id.ValueInt64())},
-	}
-
-	if _, err := r.client.InvokeLegacyAction(ctx, landscape.LegacyActionParams("RemoveScriptAttachment"), landscape.EncodeQueryRequestEditor(vals)); err != nil {
+	if _, err := r.client.RemoveScriptAttachmentWithResponse(ctx, &landscape.RemoveScriptAttachmentParams{
+		Version:  "2011-08-01",
+		Action:   "RemoveScriptAttachment",
+		ScriptId: int(state.ScriptId.ValueInt64()),
+		Filename: state.Filename.ValueString(),
+	}); err != nil {
 		resp.Diagnostics.AddError("Failed to remove attachment", err.Error())
 	}
 }
