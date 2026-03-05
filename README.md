@@ -37,7 +37,18 @@ provider "landscape" {
 }
 ```
 
-All provider arguments can also be set via environment variables: `LANDSCAPE_BASE_URL`, `LANDSCAPE_ACCESS_KEY`, `LANDSCAPE_SECRET_KEY`, `LANDSCAPE_EMAIL`, `LANDSCAPE_PASSWORD`, `LANDSCAPE_ACCOUNT`.
+All provider arguments can also be set via environment variables: `LANDSCAPE_BASE_URL`, `LANDSCAPE_ACCESS_KEY`, `LANDSCAPE_SECRET_KEY`, `LANDSCAPE_EMAIL`, `LANDSCAPE_PASSWORD`, `LANDSCAPE_ACCOUNT`, `LANDSCAPE_TLS_CA_FILE`, `LANDSCAPE_TLS_CA_CERT`.
+
+For self-signed or private CA certificates, use `tls_ca_file` (path) or `tls_ca_cert` (inline PEM):
+
+```terraform
+provider "landscape" {
+  base_url    = var.landscape_base_url
+  email       = var.landscape_email
+  password    = var.landscape_password
+  tls_ca_cert = file("ca.crt")  # or tls_ca_file = "/path/to/ca.crt"
+}
+```
 
 ## Resources and data sources
 
@@ -47,6 +58,10 @@ All provider arguments can also be set via environment variables: `LANDSCAPE_BAS
 | resource    | `landscape_script_v2`            | V2 script with interpreter line                        |
 | resource    | `landscape_script_v2_attachment` | File attachment for a V2 script                        |
 | resource    | `landscape_script_profile`       | Script profile (event, recurring, or one-time trigger) |
+| resource    | `landscape_distribution`         | APT distribution (e.g. Ubuntu)                         |
+| resource    | `landscape_series`               | Series within a distribution (e.g. noble)              |
+| resource    | `landscape_gpg_key`              | GPG key for repository signing                         |
+| resource    | `landscape_repository_profile`   | Repository profile with pockets                        |
 | data source | `landscape_script_v1`            | Read a V1 script by ID                                 |
 | data source | `landscape_script_v2`            | Read a V2 script by ID                                 |
 | data source | `landscape_script_v2_attachment` | Read a script attachment by ID                         |
