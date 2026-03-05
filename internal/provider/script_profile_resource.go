@@ -6,6 +6,7 @@ package provider
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"sort"
 	"strconv"
 	"time"
@@ -242,7 +243,21 @@ func (r *ScriptProfileResource) Update(ctx context.Context, req resource.UpdateR
 		return
 	}
 	if res.JSON200 == nil {
-		resp.Diagnostics.AddError("Failed to update script profile", res.Status())
+		errMsg := res.Status()
+		if res.JSON400 != nil && res.JSON400.Message != nil {
+			errMsg = fmt.Sprintf("%s: %s", errMsg, *res.JSON400.Message)
+		} else if res.JSON401 != nil && res.JSON401.Message != nil {
+			errMsg = fmt.Sprintf("%s: %s", errMsg, *res.JSON401.Message)
+		} else if res.JSON403 != nil && res.JSON403.Message != nil {
+			errMsg = fmt.Sprintf("%s: %s", errMsg, *res.JSON403.Message)
+		} else if res.JSON404 != nil && res.JSON404.Message != nil {
+			errMsg = fmt.Sprintf("%s: %s", errMsg, *res.JSON404.Message)
+		} else if res.JSON409 != nil && res.JSON409.Message != nil {
+			errMsg = fmt.Sprintf("%s: %s", errMsg, *res.JSON409.Message)
+		} else if len(res.Body) > 0 {
+			errMsg = fmt.Sprintf("%s: %s", errMsg, res.Body)
+		}
+		resp.Diagnostics.AddError("Failed to update script profile", errMsg)
 		return
 	}
 
@@ -262,13 +277,21 @@ func (r *ScriptProfileResource) Delete(ctx context.Context, req resource.DeleteR
 		return
 	}
 
-	res, err := r.client.ArchiveScriptProfileWithResponse(ctx, int(state.Id.ValueInt64()))
+	addContentType := func(_ context.Context, r *http.Request) error {
+		r.Header.Set("Content-Type", "application/json")
+		return nil
+	}
+	res, err := r.client.ArchiveScriptProfileWithResponse(ctx, int(state.Id.ValueInt64()), addContentType)
 	if err != nil {
 		resp.Diagnostics.AddError("Failed to archive script profile", err.Error())
 		return
 	}
 	if res.StatusCode() != 204 && res.StatusCode() != 404 {
-		resp.Diagnostics.AddError("Failed to archive script profile", res.Status())
+		errMsg := res.Status()
+		if len(res.Body) > 0 {
+			errMsg = fmt.Sprintf("%s: %s", errMsg, res.Body)
+		}
+		resp.Diagnostics.AddError("Failed to archive script profile", errMsg)
 	}
 }
 
@@ -318,6 +341,8 @@ func planToPatchBody(ctx context.Context, plan ScriptProfileResourceModel) (land
 	var tags []string
 	if !plan.Tags.IsNull() && !plan.Tags.IsUnknown() {
 		diags.Append(plan.Tags.ElementsAs(ctx, &tags, false)...)
+	} else {
+		tags = []string{}
 	}
 
 	patchTrigger, d := planTriggerToPatchRequest(ctx, plan.Trigger)

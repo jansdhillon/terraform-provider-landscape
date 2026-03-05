@@ -1,8 +1,7 @@
 terraform {
   required_providers {
     landscape = {
-      source  = "jansdhillon/landscape"
-      version = "~> 0.1"
+      source = "jansdhillon/landscape"
     }
   }
 }
@@ -31,7 +30,6 @@ resource "landscape_script_v2_attachment" "my_attachment" {
   EOT
 }
 
-# Script profile — run on every post-enrollment event
 resource "landscape_script_profile" "on_enroll" {
   title      = "post-enrollment setup ${uuid()}"
   script_id  = landscape_script_v2.active.id
@@ -43,7 +41,6 @@ resource "landscape_script_profile" "on_enroll" {
   }
 }
 
-# Script profile — recurring every hour after a start date
 resource "landscape_script_profile" "hourly" {
   title      = "hourly check ${uuid()}"
   script_id  = landscape_script_v2.active.id
@@ -96,4 +93,50 @@ output "v2_attachment" {
 
 output "data_v2_attachment" {
   value = data.landscape_script_v2_attachment.data_attachment
+}
+
+resource "landscape_gpg_key" "mirror_key" {
+  name     = "test-mirror-key"
+  material = file("gpg.key")
+}
+
+resource "landscape_distribution" "ubuntu" {
+  name         = "ubuntu"
+  access_group = "global"
+}
+
+resource "landscape_series" "noble" {
+  name          = "noble"
+  distribution  = landscape_distribution.ubuntu.name
+  pockets       = ["release", "updates", "security", "proposed", "backports"]
+  components    = ["main", "universe", "multiverse", "restricted"]
+  architectures = ["amd64"]
+  gpg_key       = landscape_gpg_key.mirror_key.name
+  mirror_uri    = "http://archive.ubuntu.com/ubuntu"
+}
+
+resource "landscape_repository_profile" "noble_mirror" {
+  title         = "apply-ubuntu-noble-mirror"
+  pockets       = ["release", "updates", "security", "proposed", "backports"]
+  series        = landscape_series.noble.name
+  distribution  = landscape_distribution.ubuntu.name
+  all_computers = false
+  tags          = ["noble"]
+}
+
+output "gpg_key" {
+  value     = landscape_gpg_key.mirror_key
+  sensitive = true
+}
+
+output "distribution" {
+  value = landscape_distribution.ubuntu
+}
+
+output "series" {
+  value = landscape_series.noble
+}
+
+output "repository_profile" {
+  value = landscape_repository_profile.noble_mirror
 }

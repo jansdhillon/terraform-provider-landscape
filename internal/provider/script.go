@@ -34,16 +34,10 @@ var scriptAttachmentAttrType = map[string]attr.Type{
 	"filename": types.StringType,
 }
 
-func int64Ptr(i int64) *int64 {
-	return &i
-}
-
 func fetchV1Code(ctx context.Context, client *landscape.ClientWithResponses, id int) (string, diag.Diagnostics) {
 	var diags diag.Diagnostics
 
-	codeRes, err := client.GetScriptCodeWithResponse(ctx, &landscape.GetScriptCodeParams{
-		Version:  "2011-08-01",
-		Action:   "GetScriptCode",
+	codeRes, err := client.LegacyGetScriptCodeWithResponse(ctx, &landscape.LegacyGetScriptCodeParams{
 		ScriptId: id,
 	})
 	if err != nil {
@@ -62,7 +56,7 @@ func fetchV1Code(ctx context.Context, client *landscape.ClientWithResponses, id 
 		return "", diags
 	}
 
-	raw, err := codeRes.JSON200.AsLegacyScriptCode()
+	raw, err := landscape.ParseLegacyResponse[string](codeRes.Body)
 	if err != nil {
 		diags.AddError("Decoding legacy script code failed", err.Error())
 		return "", diags

@@ -247,7 +247,7 @@ func v2ScriptToDataSourceState(ctx context.Context, v2Script landscape.V2Script)
 		elems := make([]attr.Value, 0, len(*v2Script.Attachments))
 		for _, a := range *v2Script.Attachments {
 			elem, d := types.ObjectValue(scriptAttachmentAttrType, map[string]attr.Value{
-				"id":       types.Int64PointerValue(int64Ptr(int64(a.Id))),
+				"id":       types.Int64Value(int64(a.Id)),
 				"filename": types.StringValue(a.Filename),
 			})
 			diags.Append(d...)
@@ -267,7 +267,7 @@ func v2ScriptToDataSourceState(ctx context.Context, v2Script landscape.V2Script)
 		elems := make([]attr.Value, 0, len(*v2Script.ScriptProfiles))
 		for _, sp := range *v2Script.ScriptProfiles {
 			elem, d := types.ObjectValue(scriptProfileAttrType, map[string]attr.Value{
-				"id":    types.Int64PointerValue(int64Ptr(int64(sp.Id))),
+				"id":    types.Int64Value(int64(sp.Id)), // Go 1.26: new(expr)
 				"title": types.StringValue(sp.Title),
 			})
 			diags.Append(d...)

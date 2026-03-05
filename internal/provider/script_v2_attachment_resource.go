@@ -7,6 +7,8 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
+	"io"
+	"net/http"
 
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
@@ -88,9 +90,9 @@ func (r *ScriptV2AttachmentResource) Create(ctx context.Context, req resource.Cr
 
 	fileParam := fmt.Sprintf("%s$$%s", plan.Filename.ValueString(), base64.StdEncoding.EncodeToString([]byte(plan.Content.ValueString())))
 
-	createRes, err := r.client.CreateScriptAttachmentWithResponse(ctx, &landscape.CreateScriptAttachmentParams{
-		Version:  "2011-08-01",
-		Action:   "CreateScriptAttachment",
+	// The API returns a plain JSON string (the filename), not an object, so
+	// using WithResponse would fail to unmarshal. Use the raw HTTP call instead.
+	rawCreateResp, err := r.client.LegacyCreateScriptAttachment(ctx, &landscape.LegacyCreateScriptAttachmentParams{
 		ScriptId: int(plan.ScriptId.ValueInt64()),
 		File:     fileParam,
 	})
@@ -98,9 +100,10 @@ func (r *ScriptV2AttachmentResource) Create(ctx context.Context, req resource.Cr
 		resp.Diagnostics.AddError("Failed to create attachment", err.Error())
 		return
 	}
-
-	if createRes.JSON200 == nil {
-		resp.Diagnostics.AddError("Failed to create attachment", fmt.Sprintf("Unexpected response (%s)\n%s", createRes.Status(), createRes.Body))
+	defer rawCreateResp.Body.Close()
+	if rawCreateResp.StatusCode != http.StatusOK {
+		errBody, _ := io.ReadAll(rawCreateResp.Body)
+		resp.Diagnostics.AddError("Failed to create attachment", fmt.Sprintf("status %s: %s", rawCreateResp.Status, errBody))
 		return
 	}
 
@@ -208,9 +211,7 @@ func (r *ScriptV2AttachmentResource) Delete(ctx context.Context, req resource.De
 		return
 	}
 
-	if _, err := r.client.RemoveScriptAttachmentWithResponse(ctx, &landscape.RemoveScriptAttachmentParams{
-		Version:  "2011-08-01",
-		Action:   "RemoveScriptAttachment",
+	if _, err := r.client.LegacyRemoveScriptAttachmentWithResponse(ctx, &landscape.LegacyRemoveScriptAttachmentParams{
 		ScriptId: int(state.ScriptId.ValueInt64()),
 		Filename: state.Filename.ValueString(),
 	}); err != nil {

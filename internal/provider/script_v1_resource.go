@@ -136,9 +136,7 @@ func (r *ScriptV1Resource) Create(ctx context.Context, req resource.CreateReques
 	}
 
 	scriptType := "V1"
-	createPar := &landscape.CreateScriptParams{
-		Version:    "2011-08-01",
-		Action:     "CreateScript",
+	createPar := &landscape.LegacyCreateScriptParams{
 		Title:      title.ValueString(),
 		Code:       base64.StdEncoding.EncodeToString([]byte(codeAttr.ValueString())),
 		ScriptType: &scriptType,
@@ -156,7 +154,7 @@ func (r *ScriptV1Resource) Create(ctx context.Context, req resource.CreateReques
 		createPar.AccessGroup = &s
 	}
 
-	res, err := r.client.CreateScriptWithResponse(ctx, createPar)
+	res, err := r.client.LegacyCreateScriptWithResponse(ctx, createPar)
 	errTitle := "Failed to create V1 script"
 	if err != nil {
 		resp.Diagnostics.AddError(errTitle, err.Error())
@@ -172,21 +170,13 @@ func (r *ScriptV1Resource) Create(ctx context.Context, req resource.CreateReques
 		return
 	}
 
-	scriptRes, err := res.JSON200.AsScriptResult()
+	v1Script, err := landscape.ParseLegacyResponse[landscape.V1Script](res.Body)
 	if err != nil {
 		resp.Diagnostics.AddError("Failed to parse response as script", err.Error())
 		return
 	}
 
-	v1Script, err := scriptRes.AsV1Script()
-	if err != nil {
-		resp.Diagnostics.AddError("Failed to read script as V1 script", err.Error())
-		return
-	}
-
-	codeRes, err := r.client.GetScriptCodeWithResponse(ctx, &landscape.GetScriptCodeParams{
-		Version:  "2011-08-01",
-		Action:   "GetScriptCode",
+	codeRes, err := r.client.LegacyGetScriptCodeWithResponse(ctx, &landscape.LegacyGetScriptCodeParams{
 		ScriptId: v1Script.Id,
 	})
 	errTitle = "Failed to get script code"
@@ -200,7 +190,7 @@ func (r *ScriptV1Resource) Create(ctx context.Context, req resource.CreateReques
 		return
 	}
 
-	rawCode, err := codeRes.JSON200.AsLegacyScriptCode()
+	rawCode, err := landscape.ParseLegacyResponse[string](codeRes.Body)
 	if err != nil {
 		resp.Diagnostics.AddError(errTitle, fmt.Sprintf("An error occurred getting the script code: %s", err))
 		return
@@ -271,9 +261,7 @@ func (r *ScriptV1Resource) Update(ctx context.Context, req resource.UpdateReques
 		return
 	}
 
-	editPar := &landscape.EditScriptParams{
-		Version:  "2011-08-01",
-		Action:   "EditScript",
+	editPar := &landscape.LegacyEditScriptParams{
 		ScriptId: int(state.Id.ValueInt64()),
 	}
 	if !plan.Title.IsUnknown() && !plan.Title.IsNull() {
@@ -293,7 +281,7 @@ func (r *ScriptV1Resource) Update(ctx context.Context, req resource.UpdateReques
 		editPar.Code = &b64
 	}
 
-	res, err := r.client.EditScriptWithResponse(ctx, editPar)
+	res, err := r.client.LegacyEditScriptWithResponse(ctx, editPar)
 	errTitle := "Update failed"
 	if err != nil {
 		resp.Diagnostics.AddError(errTitle, err.Error())
@@ -310,15 +298,9 @@ func (r *ScriptV1Resource) Update(ctx context.Context, req resource.UpdateReques
 		return
 	}
 
-	scriptRes, err := res.JSON200.AsScriptResult()
+	v1, err := landscape.ParseLegacyResponse[landscape.V1Script](res.Body)
 	if err != nil {
 		resp.Diagnostics.AddError("Failed to read script", fmt.Sprintf("Error getting script: %s", err))
-		return
-	}
-
-	v1, err := scriptRes.AsV1Script()
-	if err != nil {
-		resp.Diagnostics.AddError("Failed to convert script", fmt.Sprintf("Error getting script: %s", err))
 		return
 	}
 
@@ -348,9 +330,7 @@ func (r *ScriptV1Resource) Delete(ctx context.Context, req resource.DeleteReques
 		return
 	}
 
-	_, err := r.client.RemoveScriptWithResponse(ctx, &landscape.RemoveScriptParams{
-		Version:  "2011-08-01",
-		Action:   "RemoveScript",
+	_, err := r.client.LegacyRemoveScriptWithResponse(ctx, &landscape.LegacyRemoveScriptParams{
 		ScriptId: int(state.Id.ValueInt64()),
 	})
 	if err != nil {
@@ -424,7 +404,7 @@ func v1ScriptToResourceState(_ context.Context, v1 landscape.V1Script, rawCode s
 	}
 
 	creatorObj, cd := types.ObjectValue(createdByAttrTypes, map[string]attr.Value{
-		"id":    types.Int64PointerValue(int64Ptr(int64(creatorId))),
+		"id":    types.Int64Value(int64(creatorId)),
 		"name":  types.StringValue(creatorName),
 		"email": types.StringValue(creatorEmail),
 	})

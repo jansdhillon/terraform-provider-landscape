@@ -5,6 +5,9 @@ package provider
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
+	"net/http"
 	"os"
 
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
@@ -74,6 +77,10 @@ func (p *landscapeProvider) Schema(_ context.Context, _ provider.SchemaRequest, 
 				Optional:    true,
 				Description: "Landscape API secret key (required with access_key for access key authentication). Can also be set with the LANDSCAPE_SECRET_KEY environment variable.",
 			},
+			"tls_ca_file": schema.StringAttribute{
+				Optional:    true,
+				Description: "Path to a PEM-encoded CA certificate file to trust for TLS connections (e.g. for self-signed certs). Can also be set with the LANDSCAPE_TLS_CA_FILE environment variable.",
+			},
 		},
 	}
 }
@@ -86,6 +93,7 @@ type landscapeProviderModel struct {
 	Email     types.String `tfsdk:"email"`
 	Password  types.String `tfsdk:"password"`
 	SecretKey types.String `tfsdk:"secret_key"`
+	TLSCAFile types.String `tfsdk:"tls_ca_file"`
 }
 
 // Configure prepares shared API clients for data sources and resources.
@@ -161,6 +169,7 @@ func (p *landscapeProvider) Configure(ctx context.Context, req provider.Configur
 	email := os.Getenv("LANDSCAPE_EMAIL")
 	password := os.Getenv("LANDSCAPE_PASSWORD")
 	account := os.Getenv("LANDSCAPE_ACCOUNT")
+	tlsCAFile := os.Getenv("LANDSCAPE_TLS_CA_FILE")
 
 	if !config.BaseURL.IsNull() {
 		baseURL = config.BaseURL.ValueString()
@@ -184,6 +193,10 @@ func (p *landscapeProvider) Configure(ctx context.Context, req provider.Configur
 
 	if !config.Account.IsNull() {
 		account = config.Account.ValueString()
+	}
+
+	if !config.TLSCAFile.IsNull() {
+		tlsCAFile = config.TLSCAFile.ValueString()
 	}
 
 	if baseURL == "" {
@@ -229,13 +242,33 @@ func (p *landscapeProvider) Configure(ctx context.Context, req provider.Configur
 		return
 	}
 
+	var clientOpts []landscape.ClientOption
+	if tlsCAFile != "" {
+		caPEM, err := os.ReadFile(tlsCAFile)
+		if err != nil {
+			resp.Diagnostics.AddError("Failed to read TLS CA file", err.Error())
+			return
+		}
+		pool := x509.NewCertPool()
+		if !pool.AppendCertsFromPEM(caPEM) {
+			resp.Diagnostics.AddError("Failed to parse TLS CA file", "No valid certificates found in "+tlsCAFile)
+			return
+		}
+		httpClient := &http.Client{
+			Transport: &http.Transport{
+				TLSClientConfig: &tls.Config{RootCAs: pool},
+			},
+		}
+		clientOpts = append(clientOpts, landscape.WithHTTPClient(httpClient))
+	}
+
 	var client *landscape.ClientWithResponses
 	var err error
 
 	if email != "" && password != "" {
-		client, err = landscape.NewLandscapeAPIClient(baseURL, landscape.NewEmailPasswordProvider(email, password, &account))
+		client, err = landscape.NewLandscapeAPIClient(baseURL, landscape.NewEmailPasswordProvider(email, password, &account), clientOpts...)
 	} else {
-		client, err = landscape.NewLandscapeAPIClient(baseURL, landscape.NewAccessKeyProvider(accessKey, secretKey))
+		client, err = landscape.NewLandscapeAPIClient(baseURL, landscape.NewAccessKeyProvider(accessKey, secretKey), clientOpts...)
 	}
 
 	if err != nil {
@@ -272,5 +305,9 @@ func (p *landscapeProvider) Resources(_ context.Context) []func() resource.Resou
 		NewScriptV2Resource,
 		NewScriptV2AttachmentResource,
 		NewScriptProfileResource,
+		NewGPGKeyResource,
+		NewDistributionResource,
+		NewSeriesResource,
+		NewRepositoryProfileResource,
 	}
 }

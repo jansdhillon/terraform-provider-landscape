@@ -187,9 +187,7 @@ func (r *ScriptV2Resource) Create(ctx context.Context, req resource.CreateReques
 	}
 
 	scriptType := "V2"
-	createPar := &landscape.CreateScriptParams{
-		Version:    "2011-08-01",
-		Action:     "CreateScript",
+	createPar := &landscape.LegacyCreateScriptParams{
 		Title:      title.ValueString(),
 		Code:       base64.StdEncoding.EncodeToString([]byte(codeAttr.ValueString())),
 		ScriptType: &scriptType,
@@ -207,7 +205,7 @@ func (r *ScriptV2Resource) Create(ctx context.Context, req resource.CreateReques
 		createPar.AccessGroup = &s
 	}
 
-	res, err := r.client.CreateScriptWithResponse(ctx, createPar)
+	res, err := r.client.LegacyCreateScriptWithResponse(ctx, createPar)
 	if err != nil {
 		resp.Diagnostics.AddError("Failed to create script", err.Error())
 		return
@@ -225,15 +223,9 @@ func (r *ScriptV2Resource) Create(ctx context.Context, req resource.CreateReques
 		return
 	}
 
-	scriptRes, err := res.JSON200.AsScriptResult()
+	v2Script, err := landscape.ParseLegacyResponse[landscape.V2Script](res.Body)
 	if err != nil {
 		resp.Diagnostics.AddError("Failed to parse response as script", err.Error())
-		return
-	}
-
-	v2Script, err := scriptRes.AsV2Script()
-	if err != nil {
-		resp.Diagnostics.AddError("Failed to read script as V2 script", err.Error())
 		return
 	}
 
@@ -306,9 +298,7 @@ func (r *ScriptV2Resource) Update(ctx context.Context, req resource.UpdateReques
 		return
 	}
 
-	editPar := &landscape.EditScriptParams{
-		Version:  "2011-08-01",
-		Action:   "EditScript",
+	editPar := &landscape.LegacyEditScriptParams{
 		ScriptId: int(state.Id.ValueInt64()),
 	}
 	if !plan.Title.IsUnknown() && !plan.Title.IsNull() {
@@ -328,7 +318,7 @@ func (r *ScriptV2Resource) Update(ctx context.Context, req resource.UpdateReques
 		editPar.Code = &b64
 	}
 
-	res, err := r.client.EditScriptWithResponse(ctx, editPar)
+	res, err := r.client.LegacyEditScriptWithResponse(ctx, editPar)
 	errTitle := "Updating v2 script failed"
 	if err != nil {
 		resp.Diagnostics.AddError(errTitle, err.Error())
@@ -430,7 +420,7 @@ func v2ScriptToResourceState(_ context.Context, v2Script landscape.V2Script) (Sc
 		elems := make([]attr.Value, 0, len(*v2Script.Attachments))
 		for _, a := range *v2Script.Attachments {
 			elem, d := types.ObjectValue(scriptAttachmentAttrType, map[string]attr.Value{
-				"id":       types.Int64PointerValue(int64Ptr(int64(a.Id))),
+				"id":       types.Int64Value(int64(a.Id)),
 				"filename": types.StringValue(a.Filename),
 			})
 			diags.Append(d...)
@@ -450,7 +440,7 @@ func v2ScriptToResourceState(_ context.Context, v2Script landscape.V2Script) (Sc
 		elems := make([]attr.Value, 0, len(*v2Script.ScriptProfiles))
 		for _, sp := range *v2Script.ScriptProfiles {
 			elem, d := types.ObjectValue(scriptProfileAttrType, map[string]attr.Value{
-				"id":    types.Int64PointerValue(int64Ptr(int64(sp.Id))),
+				"id":    types.Int64Value(int64(sp.Id)),
 				"title": types.StringValue(sp.Title),
 			})
 			diags.Append(d...)

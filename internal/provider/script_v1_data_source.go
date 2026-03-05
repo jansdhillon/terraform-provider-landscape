@@ -195,7 +195,7 @@ func v1ScriptToDataSourceState(ctx context.Context, client *landscape.ClientWith
 	}
 
 	creatorObj, cd := types.ObjectValue(createdByAttrTypes, map[string]attr.Value{
-		"id":    types.Int64PointerValue(int64Ptr(int64(creatorId))),
+		"id":    types.Int64Value(int64(creatorId)),
 		"name":  types.StringValue(creatorName),
 		"email": types.StringValue(creatorEmail),
 	})
