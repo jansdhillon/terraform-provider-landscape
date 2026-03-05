@@ -1,22 +1,19 @@
-# Terraform Provider testing workflow.
-name: Tests
+name: CI
 
-# This GitHub action runs your tests for each pull request and push.
-# Optionally, you can turn it on using a schedule for regular testing.
 on:
   pull_request:
     paths-ignore:
-      - 'README.md'
+      - "README.md"
   push:
+    branches:
+      - main
     paths-ignore:
-      - 'README.md'
+      - "README.md"
 
-# Testing only needs permissions to read the repository contents.
 permissions:
-  contents: read
+  contents: write
 
 jobs:
-  # Ensure project builds before running testing matrix
   build:
     name: Build
     runs-on: ubuntu-latest
@@ -25,7 +22,7 @@ jobs:
       - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
       - uses: actions/setup-go@4dc6199c7b1a012772edbd06daecab0f50c9053c # v6.1.0
         with:
-          go-version-file: 'go.mod'
+          go-version-file: "go.mod"
           cache: true
       - run: go mod download
       - run: go build -v .
@@ -40,9 +37,8 @@ jobs:
       - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
       - uses: actions/setup-go@4dc6199c7b1a012772edbd06daecab0f50c9053c # v6.1.0
         with:
-          go-version-file: 'go.mod'
+          go-version-file: "go.mod"
           cache: true
-      # We need the latest version of Terraform for our documentation generation to use
       - uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd # v3.1.2
         with:
           terraform_wrapper: false
@@ -52,7 +48,6 @@ jobs:
           git diff --compact-summary --exit-code || \
             (echo; echo "Unexpected difference in directories after code generation. Run 'make generate' command and commit."; exit 1)
 
-  # Run acceptance tests in a matrix with Terraform CLI versions
   test:
     name: Terraform Provider Acceptance Tests
     needs: build
@@ -61,18 +56,17 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # list whatever Terraform versions here you would like to support
         terraform:
-          - '1.6.*'
-          - '1.7.*'
-          - '1.8.*'
-          - '1.9.*'
-          - '1.10.*'
+          - "1.6.*"
+          - "1.7.*"
+          - "1.8.*"
+          - "1.9.*"
+          - "1.10.*"
     steps:
       - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
       - uses: actions/setup-go@4dc6199c7b1a012772edbd06daecab0f50c9053c # v6.1.0
         with:
-          go-version-file: 'go.mod'
+          go-version-file: "go.mod"
           cache: true
       - uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd # v3.1.2
         with:
@@ -83,3 +77,26 @@ jobs:
           TF_ACC: "1"
         run: go test -v -cover ./internal/provider/
         timeout-minutes: 10
+
+  tag:
+    name: Tag release
+    needs: [build, generate, test]
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push'
+    steps:
+      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+        with:
+          fetch-depth: 0
+      - name: Bump patch version and tag
+        run: |
+          latest=$(git tag -l 'v*' | sort -V | tail -1)
+          if [[ -z "$latest" ]]; then
+            new="v0.0.1"
+          else
+            IFS='.' read -r major minor patch <<< "${latest#v}"
+            new="v${major}.${minor}.$((patch + 1))"
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag "$new"
+          git push origin "$new"
