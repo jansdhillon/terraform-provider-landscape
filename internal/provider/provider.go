@@ -81,6 +81,10 @@ func (p *landscapeProvider) Schema(_ context.Context, _ provider.SchemaRequest, 
 				Optional:    true,
 				Description: "Path to a PEM-encoded CA certificate file to trust for TLS connections (e.g. for self-signed certs). Can also be set with the LANDSCAPE_TLS_CA_FILE environment variable.",
 			},
+			"tls_ca_cert": schema.StringAttribute{
+				Optional:    true,
+				Description: "PEM-encoded CA certificate to trust for TLS connections. Use this instead of tls_ca_file when the cert is available as a string (e.g. from a secret). Can also be set with the LANDSCAPE_TLS_CA_CERT environment variable.",
+			},
 		},
 	}
 }
@@ -94,6 +98,7 @@ type landscapeProviderModel struct {
 	Password  types.String `tfsdk:"password"`
 	SecretKey types.String `tfsdk:"secret_key"`
 	TLSCAFile types.String `tfsdk:"tls_ca_file"`
+	TLSCACert types.String `tfsdk:"tls_ca_cert"`
 }
 
 // Configure prepares shared API clients for data sources and resources.
@@ -170,6 +175,7 @@ func (p *landscapeProvider) Configure(ctx context.Context, req provider.Configur
 	password := os.Getenv("LANDSCAPE_PASSWORD")
 	account := os.Getenv("LANDSCAPE_ACCOUNT")
 	tlsCAFile := os.Getenv("LANDSCAPE_TLS_CA_FILE")
+	tlsCACert := os.Getenv("LANDSCAPE_TLS_CA_CERT")
 
 	if !config.BaseURL.IsNull() {
 		baseURL = config.BaseURL.ValueString()
@@ -197,6 +203,10 @@ func (p *landscapeProvider) Configure(ctx context.Context, req provider.Configur
 
 	if !config.TLSCAFile.IsNull() {
 		tlsCAFile = config.TLSCAFile.ValueString()
+	}
+
+	if !config.TLSCACert.IsNull() {
+		tlsCACert = config.TLSCACert.ValueString()
 	}
 
 	if baseURL == "" {
@@ -243,15 +253,21 @@ func (p *landscapeProvider) Configure(ctx context.Context, req provider.Configur
 	}
 
 	var clientOpts []landscape.ClientOption
+	var caPEM []byte
 	if tlsCAFile != "" {
-		caPEM, err := os.ReadFile(tlsCAFile)
+		var err error
+		caPEM, err = os.ReadFile(tlsCAFile)
 		if err != nil {
 			resp.Diagnostics.AddError("Failed to read TLS CA file", err.Error())
 			return
 		}
+	} else if tlsCACert != "" {
+		caPEM = []byte(tlsCACert)
+	}
+	if len(caPEM) > 0 {
 		pool := x509.NewCertPool()
 		if !pool.AppendCertsFromPEM(caPEM) {
-			resp.Diagnostics.AddError("Failed to parse TLS CA file", "No valid certificates found in "+tlsCAFile)
+			resp.Diagnostics.AddError("Failed to parse TLS CA certificate", "No valid certificates found")
 			return
 		}
 		httpClient := &http.Client{
